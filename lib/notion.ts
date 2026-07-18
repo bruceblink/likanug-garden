@@ -1,4 +1,5 @@
 import { Client, isFullPage, isNotionClientError } from '@notionhq/client'
+import { unstable_cache } from 'next/cache'
 import { site } from './site'
 
 type NotionProperty = Record<string, unknown>
@@ -37,9 +38,7 @@ const emptyData = (error?: string): BlogData => ({
   error
 })
 
-function client() {
-  return new Client({ auth: site.apiKey })
-}
+const api = new Client({ auth: site.apiKey })
 
 function plainText(items: unknown): string {
   if (!Array.isArray(items)) return ''
@@ -135,7 +134,7 @@ async function readAllPages(dataSourceId: string): Promise<NotionPage[]> {
   const pages: NotionPage[] = []
   let start_cursor: string | null | undefined
   do {
-    const response = await client().dataSources.query({
+    const response = await api.dataSources.query({
       data_source_id: dataSourceId,
       page_size: 100,
       start_cursor,
@@ -172,7 +171,7 @@ async function readBlogData(): Promise<BlogData> {
   if (!site.apiKey) return emptyData('未配置 NOTION_API_KEY。请创建并授权 Notion Integration。')
 
   try {
-    const database = await client().databases.retrieve({
+    const database = await api.databases.retrieve({
       database_id: site.pageId
     })
     if (!('data_sources' in database) || database.data_sources.length === 0) {
@@ -192,18 +191,24 @@ async function readBlogData(): Promise<BlogData> {
   }
 }
 
-export const getBlogData = async (): Promise<BlogData> => readBlogData()
+const getCachedBlogData = unstable_cache(
+  readBlogData,
+  ['notion-blog-data', site.pageId],
+  { revalidate: site.revalidate }
+)
+
+export const getBlogData = async (): Promise<BlogData> => getCachedBlogData()
 
 export async function getPost(slug: string): Promise<Post | null> {
   const data = await getBlogData()
   return data.posts.find(post => post.slug === slug) ?? null
 }
 
-export async function getPostBlocks(pageId: string) {
+async function readPostBlocks(pageId: string) {
   const blocks: Array<Record<string, unknown>> = []
   let start_cursor: string | null | undefined
   do {
-    const response = await client().blocks.children.list({
+    const response = await api.blocks.children.list({
       block_id: pageId,
       page_size: 100,
       start_cursor
@@ -212,4 +217,12 @@ export async function getPostBlocks(pageId: string) {
     start_cursor = response.has_more ? response.next_cursor : null
   } while (start_cursor)
   return blocks
+}
+
+export async function getPostBlocks(pageId: string) {
+  return unstable_cache(
+    () => readPostBlocks(pageId),
+    ['notion-post-blocks', pageId],
+    { revalidate: site.revalidate }
+  )()
 }
