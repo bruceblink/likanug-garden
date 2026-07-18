@@ -19,6 +19,14 @@ main { padding: 42px 0 70px; }
 .meta { color: #7695a4; font-size: .78rem; display: flex; gap: 12px; flex-wrap: wrap; }
 .tag { color: var(--signal); }
 .empty { border: 1px dashed var(--line); padding: 26px; color: var(--muted); line-height: 1.7; }
+.search { display: flex; gap: 8px; margin: 0 0 18px; }
+.search input { width: min(360px, 100%); border: 1px solid var(--line); background: #08111f; color: var(--text); font: .85rem "Cascadia Code", Consolas, ui-monospace, monospace; padding: 10px 12px; }
+.search button { border: 1px solid var(--signal); background: transparent; color: var(--signal); cursor: pointer; font: .8rem "Cascadia Code", Consolas, ui-monospace, monospace; padding: 0 14px; }
+.filters, .pager, .index-links { display: flex; flex-wrap: wrap; gap: 12px; font: .78rem "Cascadia Code", Consolas, ui-monospace, monospace; color: var(--muted); }
+.filters { border-bottom: 1px solid var(--line); padding: 0 0 18px; }
+.filters a, .pager a, .index-links a { color: var(--signal); }
+.pager { align-items: center; justify-content: center; padding: 28px 0 4px; }
+.index-links { line-height: 1.8; }
 .article { max-width: 760px; }
 .article h1 { font-size: clamp(2rem, 5vw, 3.2rem); }
 .notion-content { margin-top: 32px; color: #c6d9e0; line-height: 1.85; }
