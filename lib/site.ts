@@ -8,8 +8,7 @@ export const site = {
     'Build quietly. Ship relentlessly. // 把好奇心编译成作品。',
   revalidate: Number(env.NEXT_PUBLIC_REVALIDATE_SECONDS ?? 300),
   pageId: env.NOTION_PAGE_ID ?? '',
-  token: env.NOTION_TOKEN_V2 ?? '',
-  activeUser: env.NOTION_ACTIVE_USER ?? '',
+  apiKey: env.NOTION_API_KEY ?? '',
   properties: {
     type: env.NOTION_PROPERTY_TYPE ?? 'type',
     title: env.NOTION_PROPERTY_TITLE ?? 'title',
