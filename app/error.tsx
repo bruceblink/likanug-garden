@@ -8,7 +8,7 @@ type ErrorPageProps = {
 
 // Give transient Notion or network failures a clear recovery path instead of a false 404.
 export default function ErrorPage({ reset }: ErrorPageProps) {
-  return <main className='shell error-shell' role='alert' aria-labelledby='error-title'>
+  return <main id='main-content' className='shell error-shell' role='alert' aria-labelledby='error-title'>
     <div className='empty error-panel'>
       <p className='eyebrow'>暂时不可用</p>
       <h1 id='error-title'>文章暂时无法加载</h1>

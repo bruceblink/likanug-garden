@@ -57,7 +57,7 @@ export default async function HomePage({searchParams}: {searchParams: SearchPara
   const listedPosts = featuredPost ? visiblePosts.slice(1) : visiblePosts
   const filterParams = {category, tag, q}
 
-  return <main>
+  return <main id='main-content'>
     <section className='shell home-intro' aria-labelledby='home-title'>
       <p className='eyebrow'>个人博客</p>
       <h1 id='home-title'>把正在理解的事，写成可以回访的记录。</h1>

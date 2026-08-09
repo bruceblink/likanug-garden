@@ -19,6 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang='zh-CN' data-scroll-behavior='smooth'>
       <body>
+        <a className='skip-link' href='#main-content'>跳至主要内容</a>
         <header className='site-header'>
           <div className='shell site-header-inner'>
             <Link className='brand' href='/' aria-label={`${site.name} 首页`}>

@@ -54,7 +54,7 @@ export default async function PostPage({ params }: PostPageProps) {
   if (error) throw new Error('Published posts are temporarily unavailable.')
   if (!post) notFound()
   const content = await getPostMarkdown(post.id)
-  return <main className='shell article-shell'>
+  return <main id='main-content' className='shell article-shell'>
     <Link className='back' href='/#posts'>返回文章列表</Link>
     <article>
       <header className='article-header'>

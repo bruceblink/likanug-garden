@@ -32,6 +32,24 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   outline-offset: 4px;
 }
 
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 40;
+  transform: translateY(calc(-100% - 16px));
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: "Cascadia Code", Consolas, ui-monospace, monospace;
+  font-size: .8rem;
+  transition: transform 120ms ease;
+}
+.skip-link:focus { transform: translateY(0); }
+#main-content { scroll-margin-top: 76px; }
+
 .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
 
 .site-header {
@@ -416,4 +434,5 @@ main.shell:not(.article-shell) { min-height: calc(100vh - 170px); padding: 72px 
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .skip-link { transition: none; }
 }

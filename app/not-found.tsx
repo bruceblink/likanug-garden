@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 }
 
 export default function NotFound() {
-  return <main className='shell error-shell' aria-labelledby='not-found-title'>
+  return <main id='main-content' className='shell error-shell' aria-labelledby='not-found-title'>
     <div className='empty error-panel'>
       <p className='eyebrow'>404</p>
       <h1 id='not-found-title'>页面不存在</h1>
