@@ -14,16 +14,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang='zh-CN'>
       <body>
-        <header className='hero'>
-          <div className='shell'>
-            <div className='status'>ONLINE / SHANGHAI / UTC+08</div>
-            <h1>{site.name}</h1>
-            <p className='intro'>{site.description}</p>
-            <nav className='nav'><Link href='/'>/home</Link><Link href='/#posts'>/posts</Link><a href={site.url}>/about</a></nav>
+        <header className='site-header'>
+          <div className='shell site-header-inner'>
+            <Link className='brand' href='/' aria-label={`${site.name} 首页`}>
+              <span className='brand-mark' aria-hidden='true'>l.</span>
+              <span>{site.name}</span>
+            </Link>
+            <nav className='site-nav' aria-label='主导航'>
+              <Link href='/#posts'>文章</Link>
+              <Link href='/#topics'>主题</Link>
+            </nav>
           </div>
         </header>
         {children}
-        <footer><div className='shell mono'>Copyright {site.name}. Built with Next.js.</div></footer>
+        <footer><div className='shell footer-content'>© 2026 {site.name} · 记录、整理、发布。</div></footer>
       </body>
     </html>
   )
