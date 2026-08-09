@@ -141,7 +141,7 @@ function externalHref(href?: string): boolean {
 function ExternalLink({href, children, node: _node, ...props}: MarkdownAnchorProps) {
   const safeUrl = safeHref(href)
   const external = externalHref(safeUrl)
-  return <a href={safeUrl} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined} {...props}>{children}</a>
+  return <a {...props} href={safeUrl} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}>{children}</a>
 }
 
 function MarkdownImage({src, alt = '', node: _node, ...props}: MarkdownImageProps) {
