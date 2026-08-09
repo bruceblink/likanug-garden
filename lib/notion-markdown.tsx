@@ -322,7 +322,7 @@ function HeadingPermalink({id, children}: Pick<MarkdownHeadingProps, 'id' | 'chi
   const label = textContent(children).trim()
   return <>
     {children}
-    <a className='notion-heading-link' href={`#${id}`} tabIndex={-1} aria-label={label ? `链接至：${label}` : '段落链接'}>#</a>
+    <a className='notion-heading-link' href={`#${id}`} aria-label={label ? `链接至：${label}` : '段落链接'}>#</a>
   </>
 }
 
