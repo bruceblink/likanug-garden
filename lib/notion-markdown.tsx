@@ -290,8 +290,15 @@ function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
   return <pre {...props}>{children}</pre>
 }
 
+/**
+ * Keeps source tables intact while giving narrow screens a small visual cue
+ * that the region itself, rather than the page, can scroll horizontally.
+ */
 function MarkdownTable({node: _node, ...props}: MarkdownTableProps) {
-  return <div className='notion-table-scroll' role='region' aria-label='表格内容，可横向滚动' tabIndex={0}><table {...props} /></div>
+  return <div className='notion-table-wrap'>
+    <div className='notion-table-scroll' role='region' aria-label='表格内容，可横向滚动' tabIndex={0}><table {...props} /></div>
+    <span className='notion-table-scroll-cue' aria-hidden='true'>↔</span>
+  </div>
 }
 
 // Keeps each visible heading addressable without changing its original Markdown content.
