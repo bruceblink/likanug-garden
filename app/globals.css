@@ -35,6 +35,10 @@ main { padding: 42px 0 70px; }
 .notion-content blockquote { border-left: 2px solid var(--signal); margin: 1.4rem 0; padding: .25rem 1rem; color: var(--muted); }
 .notion-content pre { overflow-x: auto; padding: 16px; background: #050b14; border: 1px solid var(--line); }
 .notion-content code { font-family: "Cascadia Code", Consolas, ui-monospace, monospace; }
+.mermaid-diagram-canvas, .mermaid-diagram-loading, .mermaid-diagram-error { margin: 1.5rem 0; padding: 16px; overflow-x: auto; border: 1px solid var(--line); background: #050b14; }
+.mermaid-diagram-canvas svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.mermaid-diagram-loading { color: var(--muted); font: .85rem "Cascadia Code", Consolas, ui-monospace, monospace; }
+.mermaid-diagram-error { color: #fda4af; white-space: pre-wrap; }
 .notion-content figure { margin: 1.5rem 0; }
 .notion-content img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); }
 .notion-content figcaption { color: var(--muted); font-size: .85rem; margin-top: .5rem; }

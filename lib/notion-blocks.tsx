@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { MermaidDiagram } from './mermaid-diagram'
 
 type Block = Record<string, any>
 
@@ -25,7 +26,13 @@ function BlockView({ block }: { block: Block }): ReactNode {
     case 'numbered_list_item': return <ol><li><RichText items={text} /></li></ol>
     case 'to_do': return <p><input type='checkbox' checked={Boolean(value.checked)} readOnly /> <RichText items={text} /></p>
     case 'quote': return <blockquote><RichText items={text} /></blockquote>
-    case 'code': return <pre><code>{plain(text)}</code></pre>
+    case 'code': {
+      // Notion keeps Mermaid diagrams in code blocks, so preserve other languages as source code.
+      const language = typeof value.language === 'string' ? value.language.toLowerCase() : ''
+      return language === 'mermaid'
+        ? <MermaidDiagram chart={plain(text)} />
+        : <pre><code>{plain(text)}</code></pre>
+    }
     case 'divider': return <hr />
     case 'image': {
       const source = value.type === 'external' ? value.external?.url : value.file?.url
