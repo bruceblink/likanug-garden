@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import {type Post, getBlogData} from '@/lib/notion'
+import SearchForm from './search-form'
 
 export const revalidate = 300
 const POSTS_PER_PAGE = 8
@@ -91,15 +92,7 @@ export default async function HomePage({searchParams}: {searchParams: SearchPara
         <p className='result-count' aria-live='polite'>共 {filtered.length} 篇</p>
       </div>
 
-      <form className='search' action='/#posts' method='get'>
-        <label htmlFor='post-search'>搜索文章</label>
-        <div className='search-control'>
-          <input id='post-search' name='q' type='search' defaultValue={q} placeholder='输入标题、分类或标签' />
-          {category && <input name='category' type='hidden' value={category} />}
-          {tag && <input name='tag' type='hidden' value={tag} />}
-          <button type='submit'>搜索</button>
-        </div>
-      </form>
+      <SearchForm query={q} category={category} tag={tag} />
 
       {categories.length > 0 && <nav className='category-list' aria-label='按分类筛选'>
         <span>分类</span>
