@@ -38,7 +38,7 @@ const emptyData = (error?: string): BlogData => ({
   error
 })
 
-const api = new Client({ auth: site.apiKey })
+const api = new Client({ auth: site.apiKey, notionVersion: site.notionVersion })
 
 function plainText(items: unknown): string {
   if (!Array.isArray(items)) return ''
@@ -204,25 +204,47 @@ export async function getPost(slug: string): Promise<Post | null> {
   return data.posts.find(post => post.slug === slug) ?? null
 }
 
-async function readPostBlocks(pageId: string) {
-  const blocks: Array<Record<string, unknown>> = []
-  let start_cursor: string | null | undefined
-  do {
-    const response = await api.blocks.children.list({
-      block_id: pageId,
-      page_size: 100,
-      start_cursor
-    })
-    blocks.push(...response.results)
-    start_cursor = response.has_more ? response.next_cursor : null
-  } while (start_cursor)
-  return blocks
+export type PostMarkdown = {
+  markdown: string
+  truncated: boolean
+  unknownBlockIds: string[]
 }
 
-export async function getPostBlocks(pageId: string) {
+/**
+ * Fetches the complete Notion page as enhanced Markdown and fills in blocks
+ * that the API reports as unknown (usually because a page is very large).
+ */
+async function readPostMarkdown(pageId: string): Promise<PostMarkdown> {
+  const response = await api.pages.retrieveMarkdown({ page_id: pageId })
+  let markdown = response.markdown
+
+  if (response.unknown_block_ids.length > 0) {
+    const nestedMarkdown = await Promise.all(
+      response.unknown_block_ids.map(async blockId => {
+        try {
+          const blockResponse = await api.pages.retrieveMarkdown({ page_id: blockId })
+          return blockResponse.markdown
+        } catch (error) {
+          // A missing permission should not make the rest of the article disappear.
+          console.warn(`Unable to retrieve Notion block ${blockId}`, error)
+          return ''
+        }
+      })
+    )
+    markdown = [markdown, ...nestedMarkdown].filter(Boolean).join('\n\n')
+  }
+
+  return {
+    markdown,
+    truncated: response.truncated,
+    unknownBlockIds: response.unknown_block_ids.map(String)
+  }
+}
+
+export async function getPostMarkdown(pageId: string): Promise<PostMarkdown> {
   return unstable_cache(
-    () => readPostBlocks(pageId),
-    ['notion-post-blocks', pageId],
+    () => readPostMarkdown(pageId),
+    ['notion-post-markdown', pageId],
     { revalidate: site.revalidate }
   )()
 }
