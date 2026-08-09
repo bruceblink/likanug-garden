@@ -2,7 +2,8 @@ import Link from 'next/link'
 import {type Post, getBlogData} from '@/lib/notion'
 import SearchForm from './search-form'
 
-export const revalidate = 300
+// Render filters and the cached Notion snapshot on demand; the data layer owns the refresh interval.
+export const dynamic = 'force-dynamic'
 const POSTS_PER_PAGE = 8
 
 type SearchParams = Promise<{
