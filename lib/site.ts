@@ -1,7 +1,9 @@
 const env = process.env
+const canonicalSiteUrl = 'https://blog.likanug.top'
 
 export const site = {
-  url: env.NEXT_PUBLIC_SITE_URL ?? 'https://blog.likanug.top',
+  // Published links must stay on the blog host, even if a deployment inherits a parent-site URL.
+  url: canonicalSiteUrl,
   name: 'Likanug // lab',
   description:
     env.NEXT_PUBLIC_SITE_DESCRIPTION ??
