@@ -1,6 +1,7 @@
 const env = process.env
 const defaultSiteUrl = 'https://blog.likanug.top'
 const mainSiteHosts = new Set(['likanug.top', 'www.likanug.top'])
+const defaultRevalidateSeconds = 300
 
 // Normalize the public origin used by canonical and feed links, falling back when a preview value is invalid.
 function publicSiteUrl(value: string | undefined): string {
@@ -17,6 +18,14 @@ function publicSiteUrl(value: string | undefined): string {
   }
 }
 
+// Keep cache headers and Notion's cache interval valid even when an environment value is malformed.
+function revalidateSeconds(value: string | undefined): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0
+    ? Math.floor(parsed)
+    : defaultRevalidateSeconds
+}
+
 const canonicalSiteUrl = publicSiteUrl(env.NEXT_PUBLIC_SITE_URL)
 
 export const site = {
@@ -27,7 +36,7 @@ export const site = {
   description:
     env.NEXT_PUBLIC_SITE_DESCRIPTION ??
     'Build quietly. Ship relentlessly. // 把好奇心编译成作品。',
-  revalidate: Number(env.NEXT_PUBLIC_REVALIDATE_SECONDS ?? 300),
+  revalidate: revalidateSeconds(env.NEXT_PUBLIC_REVALIDATE_SECONDS),
   // Keep the API version explicit because page Markdown is part of the newer Notion API surface.
   notionVersion: env.NOTION_API_VERSION ?? '2026-03-11',
   pageId: env.NOTION_PAGE_ID ?? '',
