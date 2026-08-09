@@ -58,11 +58,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 
 .brand {
   display: inline-flex;
+  flex: 0 0 auto;
   min-width: 0;
   align-items: center;
   gap: 10px;
   font-size: .96rem;
   font-weight: 760;
+  white-space: nowrap;
 }
 
 .brand-mark {
@@ -400,6 +402,13 @@ main.shell:not(.article-shell) { min-height: calc(100vh - 170px); padding: 72px 
   .category-list, .active-filters { gap: 8px 12px; }
   .article-header h1 { font-size: clamp(2.05rem, 11vw, 3rem); }
   .notion-content pre, .mermaid-diagram-canvas, .mermaid-diagram-loading, .mermaid-diagram-error { padding: 14px; }
+}
+
+@media (max-width: 340px) {
+  .site-header-inner { gap: 8px; }
+  .brand { gap: 6px; font-size: .84rem; }
+  .brand-mark { width: 24px; height: 24px; }
+  .site-nav { flex-wrap: nowrap; gap: 4px 8px; font-size: .72rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
