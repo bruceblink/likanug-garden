@@ -1,13 +1,57 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getPost, getPostMarkdown } from '@/lib/notion'
+import { getPostLookup, getPostMarkdown } from '@/lib/notion'
 import { NotionMarkdown } from '@/lib/notion-markdown'
+import { site } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
 
+type PostPageProps = {
+  params: Promise<{ slug: string }>
+}
+
+// Derive per-article metadata from the same published record used by the page.
+export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
+  const { slug } = await params
+  const { post, error } = await getPostLookup(slug)
+
+  if (!post) {
+    return {
+      title: error ? '文章暂时不可用' : '文章不存在',
+      robots: { index: false, follow: false }
+    }
+  }
+
+  const canonicalPath = `/posts/${encodeURIComponent(post.slug)}`
+  const description = post.summary || site.description
+
+  return {
+    title: post.title,
+    description,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      type: 'article',
+      url: canonicalPath,
+      siteName: site.name,
+      title: post.title,
+      description,
+      publishedTime: post.publishDate,
+      tags: post.tags
+    },
+    twitter: {
+      card: 'summary',
+      title: post.title,
+      description
+    }
+  }
+}
+
 // Loads the database metadata first, then renders the complete page Markdown from Notion.
-export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
-  const post = await getPost((await params).slug)
+export default async function PostPage({ params }: PostPageProps) {
+  const { slug } = await params
+  const { post, error } = await getPostLookup(slug)
+  if (error) throw new Error('Published posts are temporarily unavailable.')
   if (!post) notFound()
   const content = await getPostMarkdown(post.id)
   return <main className='shell article-shell'>

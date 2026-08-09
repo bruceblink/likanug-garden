@@ -31,6 +31,11 @@ export type BlogData = {
   error?: string
 }
 
+export type PostLookup = {
+  post: Post | null
+  error?: string
+}
+
 const emptyData = (error?: string): BlogData => ({
   posts: [],
   categories: [],
@@ -199,9 +204,14 @@ const getCachedBlogData = unstable_cache(
 
 export const getBlogData = async (): Promise<BlogData> => getCachedBlogData()
 
+// Keep a temporary source failure distinct from a genuinely missing public article.
+export async function getPostLookup(slug: string): Promise<PostLookup> {
+  const { posts, error } = await getBlogData()
+  return { post: posts.find(post => post.slug === slug) ?? null, error }
+}
+
 export async function getPost(slug: string): Promise<Post | null> {
-  const data = await getBlogData()
-  return data.posts.find(post => post.slug === slug) ?? null
+  return (await getPostLookup(slug)).post
 }
 
 export type PostMarkdown = {
