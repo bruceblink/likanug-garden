@@ -286,6 +286,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .notion-content code { font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: .88em; }
 .notion-content :not(pre) > code { border: 1px solid var(--line); border-radius: 3px; background: var(--surface-raised); color: var(--accent-soft); padding: .1rem .32rem; }
 .notion-table-scroll { width: 100%; max-width: 100%; margin: 1.6rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.notion-table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .notion-content table { width: 100%; min-width: 620px; margin: 0; border-collapse: collapse; font-size: .9rem; line-height: 1.65; }
 .notion-content th, .notion-content td { border: 1px solid var(--line); padding: .68rem .78rem; text-align: left; vertical-align: top; }
 .notion-content th { color: var(--text); background: var(--surface-raised); font-weight: 700; }

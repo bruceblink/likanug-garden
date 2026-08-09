@@ -162,7 +162,7 @@ function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
 }
 
 function MarkdownTable({node: _node, ...props}: MarkdownTableProps) {
-  return <div className='notion-table-scroll'><table {...props} /></div>
+  return <div className='notion-table-scroll' role='region' aria-label='表格内容，可横向滚动' tabIndex={0}><table {...props} /></div>
 }
 
 function NotionCallout({children, color, icon}: NotionElementProps) {

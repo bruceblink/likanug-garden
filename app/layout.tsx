@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang='zh-CN'>
+    <html lang='zh-CN' data-scroll-behavior='smooth'>
       <body>
         <header className='site-header'>
           <div className='shell site-header-inner'>
@@ -24,6 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <nav className='site-nav' aria-label='主导航'>
               <Link href='/#posts'>文章</Link>
               <Link href='/#topics'>主题</Link>
+              <Link href='https://likanug.top'>主站</Link>
             </nav>
           </div>
         </header>
