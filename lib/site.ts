@@ -1,8 +1,23 @@
 const env = process.env
-const canonicalSiteUrl = 'https://blog.likanug.top'
+const defaultSiteUrl = 'https://blog.likanug.top'
+
+// Normalize the public origin used by canonical and feed links, falling back when a preview value is invalid.
+function publicSiteUrl(value: string | undefined): string {
+  const candidate = value?.trim() || defaultSiteUrl
+
+  try {
+    const url = new URL(candidate)
+    if (!['http:', 'https:'].includes(url.protocol)) return defaultSiteUrl
+    return url.origin
+  } catch {
+    return defaultSiteUrl
+  }
+}
+
+const canonicalSiteUrl = publicSiteUrl(env.NEXT_PUBLIC_SITE_URL)
 
 export const site = {
-  // Published links must stay on the blog host, even if a deployment inherits a parent-site URL.
+  // Published links use the configured blog origin and fall back to the canonical production host.
   url: canonicalSiteUrl,
   mainSiteUrl: 'https://likanug.top',
   name: 'Likanug // lab',
