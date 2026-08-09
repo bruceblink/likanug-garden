@@ -1,4 +1,4 @@
-import type {ComponentProps, ReactNode} from 'react'
+import {Children, isValidElement, type ComponentProps, type ReactNode} from 'react'
 import ReactMarkdown, {type Components} from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
@@ -18,10 +18,25 @@ type NotionElementProps = {
   underline?: string
 }
 
-type MarkdownCodeProps = {
-  children?: ReactNode
-  className?: string
+type MarkdownCodeProps = ComponentProps<'code'> & {
   inline?: boolean
+  node?: unknown
+}
+
+type MarkdownPreProps = ComponentProps<'pre'> & {
+  node?: unknown
+}
+
+type MarkdownAnchorProps = ComponentProps<'a'> & {
+  node?: unknown
+}
+
+type MarkdownImageProps = ComponentProps<'img'> & {
+  node?: unknown
+}
+
+type MarkdownHeadingProps = ComponentProps<'h1'> & {
+  node?: unknown
 }
 
 const notionTags = [
@@ -97,13 +112,13 @@ function externalHref(href?: string): boolean {
   return Boolean(href && /^(https?:)?\/\//i.test(href))
 }
 
-function ExternalLink({href, children, ...props}: ComponentProps<'a'>) {
+function ExternalLink({href, children, node: _node, ...props}: MarkdownAnchorProps) {
   const safeUrl = safeHref(href)
   const external = externalHref(safeUrl)
   return <a href={safeUrl} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined} {...props}>{children}</a>
 }
 
-function MarkdownImage({src, alt = '', ...props}: ComponentProps<'img'>) {
+function MarkdownImage({src, alt = '', node: _node, ...props}: MarkdownImageProps) {
   const safeSrc = typeof src === 'string' ? safeHref(src) : undefined
   if (!safeSrc) return null
   // Notion returns temporary signed image URLs, so next/image cannot optimize them without a fixed host allowlist.
@@ -111,12 +126,35 @@ function MarkdownImage({src, alt = '', ...props}: ComponentProps<'img'>) {
   return <img src={safeSrc} alt={alt} loading='lazy' decoding='async' {...props} />
 }
 
-function MarkdownCode({children, className, inline}: MarkdownCodeProps) {
-  const source = String(children ?? '').replace(/\n$/, '')
+function MarkdownCode({children, className, inline: _inline, node: _node, ...props}: MarkdownCodeProps) {
   const language = className?.match(/language-([\w-]+)/)?.[1]?.toLowerCase()
-  if (!inline && language === 'mermaid') return <MermaidDiagram chart={source} />
-  if (inline) return <code className={className}>{children}</code>
-  return <pre><code className={className} data-language={language}>{source}</code></pre>
+  return <code className={className} data-language={language} {...props}>{children}</code>
+}
+
+function textContent(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textContent).join('')
+  if (isValidElement<{children?: ReactNode}>(node)) return textContent(node.props.children)
+  return ''
+}
+
+/**
+ * React Markdown owns the outer pre element for fenced blocks. This component
+ * only replaces Mermaid blocks before that pre is emitted, keeping valid HTML.
+ */
+function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
+  const codeChild = Children.toArray(children).find(child =>
+    isValidElement<{className?: string; children?: ReactNode}>(child)
+  )
+
+  if (
+    isValidElement<{className?: string; children?: ReactNode}>(codeChild) &&
+    /(?:^|\s)language-mermaid(?:\s|$)/.test(codeChild.props.className ?? '')
+  ) {
+    return <MermaidDiagram chart={textContent(codeChild.props.children).replace(/\n$/, '')} />
+  }
+
+  return <pre {...props}>{children}</pre>
 }
 
 function NotionCallout({children, color, icon}: NotionElementProps) {
@@ -172,16 +210,102 @@ function removeDuplicateTitle(markdown: string, title?: string): string {
   return `${markdown.slice(0, match.index)}${markdown.slice(match.index + match[0].length)}`.replace(/^\s+/, '')
 }
 
+/**
+ * Applies a Markdown transform only to prose. Fenced source code must remain
+ * untouched because examples may legitimately contain HTML-like table text.
+ */
+function transformOutsideFencedCode(markdown: string, transform: (prose: string) => string): string {
+  const parts: string[] = []
+  const lines = markdown.split(/\r?\n/)
+  let buffer: string[] = []
+  let fence: {character: string; length: number} | null = null
+
+  const flushProse = () => {
+    if (buffer.length > 0) {
+      parts.push(transform(buffer.join('\n')))
+      buffer = []
+    }
+  }
+
+  for (const line of lines) {
+    const marker = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      buffer.push(line)
+      const closingFence = new RegExp(`^\\s*${fence.character}{${fence.length},}\\s*$`)
+      if (closingFence.test(line)) {
+        parts.push(buffer.join('\n'))
+        buffer = []
+        fence = null
+      }
+      continue
+    }
+
+    if (marker) {
+      flushProse()
+      buffer = [line]
+      fence = {character: marker[1][0], length: marker[1].length}
+      continue
+    }
+
+    buffer.push(line)
+  }
+
+  if (buffer.length > 0) {
+    if (fence) parts.push(buffer.join('\n'))
+    else flushProse()
+  }
+
+  return parts.join('\n')
+}
+
+function tableCellToMarkdown(cell: string): string {
+  return cell
+    .trim()
+    .replace(/<br\s*\/?\s*>/gi, '<br />')
+    .replace(/\r?\n\s*/g, '<br />')
+    .replace(/\|/g, '\\|')
+}
+
+/**
+ * Converts the tables emitted by Notion's official Markdown API into GFM.
+ * This restores Markdown inside cells and gives the first row real table-heading semantics.
+ */
+function convertNotionTables(markdown: string): string {
+  return markdown.replace(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi, (table, attributes: string, body: string) => {
+    if (!/\bheader-row\s*=\s*(?:"true"|'true'|true)(?=\s|$)/i.test(attributes)) {
+      return `\n\n${table.trim()}\n\n`
+    }
+
+    const rows = Array.from(body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi))
+      .map(([, row]) => Array.from(row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi))
+        .map(([, cell]) => tableCellToMarkdown(cell)))
+      .filter(row => row.length > 0)
+
+    if (rows.length === 0) return `\n\n${table.trim()}\n\n`
+
+    const columnCount = Math.max(...rows.map(row => row.length))
+    const paddedRows = rows.map(row => Array.from({length: columnCount}, (_, index) => row[index] ?? ''))
+    const [header, ...bodyRows] = paddedRows
+    const gfmRows = [
+      `| ${header.join(' | ')} |`,
+      `| ${header.map(() => '---').join(' | ')} |`,
+      ...bodyRows.map(row => `| ${row.join(' | ')} |`)
+    ]
+
+    return `\n\n${gfmRows.join('\n')}\n\n`
+  })
+}
+
 function normalizeNotionMarkdown(markdown: string): string {
-  // Notion adds block color and toggle attributes that standard Markdown parsers would otherwise print verbatim.
-  return markdown.split(/(```[\s\S]*?```)/g).map((part, index) => {
-    if (index % 2 === 1) return part
-    return part.replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, '')
-  }).join('')
+  // Notion adds block attributes and raw tables that standard Markdown parsers cannot safely interpret as-is.
+  return transformOutsideFencedCode(markdown, prose =>
+    convertNotionTables(prose).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, '')
+  )
 }
 
 const components = {
-  h1: ({children, ...props}: ComponentProps<'h1'>) => <h2 {...props}>{children}</h2>,
+  h1: ({children, node: _node, ...props}: MarkdownHeadingProps) => <h2 {...props}>{children}</h2>,
+  pre: MarkdownPre,
   code: MarkdownCode,
   a: ExternalLink,
   img: MarkdownImage,
