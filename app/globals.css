@@ -21,6 +21,7 @@ body {
   color: var(--text);
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   text-rendering: optimizeLegibility;
+  overflow-x: clip;
 }
 
 ::selection { background: var(--accent); color: #09100a; }
@@ -45,6 +46,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 
 .site-header-inner {
   display: flex;
+  min-width: 0;
   min-height: 64px;
   align-items: center;
   justify-content: space-between;
@@ -76,7 +78,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   font-size: .78rem;
 }
 
-.site-nav { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: .82rem; }
+.site-nav { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: .82rem; }
 .site-nav a { display: inline-flex; min-height: 44px; align-items: center; }
 .site-nav a:hover { color: var(--accent); }
 
@@ -91,6 +93,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   font-size: clamp(2.45rem, 6vw, 5.2rem);
   font-weight: 650;
   line-height: 1.08;
+  word-break: break-word;
   overflow-wrap: anywhere;
 }
 .home-description {
@@ -120,6 +123,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 
 .featured-post {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(130px, .42fr) minmax(0, 1.58fr);
   gap: 28px;
   padding: 30px;
@@ -129,7 +133,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   background: var(--surface);
 }
 .featured-copy { min-width: 0; }
-.featured-copy h3, .post-copy h3 { margin: 0; overflow-wrap: anywhere; }
+.featured-copy h3, .post-copy h3 { max-width: 100%; margin: 0; overflow-wrap: anywhere; word-break: break-word; }
 .featured-copy h3 { font-size: clamp(1.55rem, 3vw, 2.45rem); line-height: 1.22; }
 .featured-copy h3 a:hover, .post-copy h3 a:hover { color: var(--accent); }
 .featured-copy p, .post-copy p { margin: 14px 0 0; color: var(--muted); line-height: 1.75; }
@@ -205,8 +209,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .post-meta, .post-tags, .article-meta, .article-tags { gap: 7px 12px; font-size: .76rem; }
 .post-meta { display: flex; flex-wrap: wrap; color: var(--muted); line-height: 1.5; }
 .post-meta span { color: var(--accent-soft); }
-.post-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; line-height: 1.5; }
+.post-tags { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; line-height: 1.5; }
 .post-tags a, .article-tags a { color: var(--link); }
+.post-tags a, .article-tags a, .topic-links a { overflow-wrap: anywhere; }
 .post-tags a:hover, .article-tags a:hover { color: var(--accent); }
 .post-row > .post-tags { padding-top: 3px; }
 
