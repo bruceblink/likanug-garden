@@ -43,6 +43,20 @@ type MarkdownTableProps = ComponentProps<'table'> & {
   node?: unknown
 }
 
+type HastNode = {
+  type?: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: HastNode[]
+  value?: string
+}
+
+type MarkdownHeading = {
+  id: string
+  level: number
+  text: string
+}
+
 const notionTags = [
   'callout',
   'columns',
@@ -61,15 +75,17 @@ const notionTags = [
   'mention-date',
   'synced_block',
   'synced_block_reference',
-  'table_of_contents',
+  'notion-table-of-contents',
   'empty-block',
   'unknown'
 ]
 
+const sanitizedHeadingIdPrefix = defaultSchema.clobberPrefix ?? ''
+
 // Allow the official Notion-flavored tags through sanitization while keeping arbitrary HTML out.
 const notionSanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), ...notionTags],
+  tagNames: [...(defaultSchema.tagNames ?? []), ...notionTags, 'nav'],
   attributes: {
     ...defaultSchema.attributes,
     callout: ['icon', 'color'],
@@ -90,6 +106,10 @@ const notionSanitizeSchema = {
     synced_block: ['url'],
     synced_block_reference: ['url'],
     unknown: ['url', 'alt'],
+    nav: ['ariaLabel', ['className', 'notion-toc']],
+    p: [...(defaultSchema.attributes?.p ?? []), ['className', 'notion-toc-label']],
+    ol: ['ariaDescribedBy', 'ariaLabel', 'ariaLabelledBy', ['className', 'contains-task-list', 'notion-toc-list']],
+    li: [['className', 'task-list-item', /^notion-toc-level-[1-6]$/]],
     a: ['href', 'title', 'target', 'rel'],
     img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'decoding']
   }
@@ -142,6 +162,115 @@ function textContent(node: ReactNode): string {
   return ''
 }
 
+function hastTextContent(node: HastNode): string {
+  if (node.type === 'text' || node.type === 'raw') return node.value ?? ''
+  if (node.tagName === 'br') return ' '
+  return node.children?.map(hastTextContent).join('') ?? ''
+}
+
+function headingLevel(node: HastNode): number | undefined {
+  const match = node.tagName?.match(/^h([1-6])$/)
+  return match ? Number(match[1]) : undefined
+}
+
+// Builds a readable, predictable fragment while retaining non-Latin letters and numbers.
+function headingSlug(text: string): string {
+  const slug = text
+    .normalize('NFKC')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return slug || 'section'
+}
+
+/**
+ * Finds rendered heading nodes once, assigns collision-safe IDs, and returns
+ * the exact text and hierarchy used by the Notion table of contents.
+ */
+function collectMarkdownHeadings(root: HastNode): MarkdownHeading[] {
+  const headings: MarkdownHeading[] = []
+  const usedIds = new Map<string, number>()
+
+  const visit = (node: HastNode) => {
+    const level = headingLevel(node)
+    if (level) {
+      const text = hastTextContent(node).replace(/\s+/g, ' ').trim()
+      const baseId = `section-${headingSlug(text)}`
+      const duplicateIndex = usedIds.get(baseId) ?? 0
+      usedIds.set(baseId, duplicateIndex + 1)
+      const id = duplicateIndex === 0 ? baseId : `${baseId}-${duplicateIndex + 1}`
+
+      node.properties = {...node.properties, id}
+      if (text) headings.push({id, level, text})
+    }
+
+    node.children?.forEach(visit)
+  }
+
+  root.children?.forEach(visit)
+  return headings
+}
+
+// Creates the sanitized navigation subtree from the headings found in the rendered document.
+function createTableOfContents(headings: MarkdownHeading[]): HastNode {
+  return {
+    type: 'element',
+    tagName: 'nav',
+    properties: {className: ['notion-toc'], ariaLabel: '文章目录'},
+    children: [
+      {
+        type: 'element',
+        tagName: 'p',
+        properties: {className: ['notion-toc-label']},
+        children: [{type: 'text', value: '目录'}]
+      },
+      {
+        type: 'element',
+        tagName: 'ol',
+        properties: {className: ['notion-toc-list']},
+        children: headings.map(heading => ({
+          type: 'element',
+          tagName: 'li',
+          properties: {className: [`notion-toc-level-${heading.level}`]},
+          children: [{
+            type: 'element',
+            tagName: 'a',
+            properties: {href: `#${sanitizedHeadingIdPrefix}${heading.id}`},
+            children: [{type: 'text', value: heading.text}]
+          }]
+        }))
+      }
+    ]
+  }
+}
+
+// Replaces every official Notion placeholder with the same outline used for heading IDs.
+function replaceTableOfContents(nodes: HastNode[], headings: MarkdownHeading[]): HastNode[] {
+  return nodes.flatMap(node => {
+    if (node.type === 'element' && node.tagName === 'notion-table-of-contents') {
+      return headings.length > 0 ? [createTableOfContents(headings)] : []
+    }
+
+    if (node.children) node.children = replaceTableOfContents(node.children, headings)
+    return [node]
+  })
+}
+
+/**
+ * Turns Notion's placeholder directory block into links after headings have
+ * stable IDs, so the navigation always matches the final rendered Markdown.
+ */
+function rehypeNotionTableOfContents() {
+  return (root: HastNode) => {
+    const headings = collectMarkdownHeadings(root)
+    if (root.children) root.children = replaceTableOfContents(root.children, headings)
+  }
+}
+
 /**
  * React Markdown owns the outer pre element for fenced blocks. This component
  * only replaces Mermaid blocks before that pre is emitted, keeping valid HTML.
@@ -163,6 +292,40 @@ function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
 
 function MarkdownTable({node: _node, ...props}: MarkdownTableProps) {
   return <div className='notion-table-scroll' role='region' aria-label='表格内容，可横向滚动' tabIndex={0}><table {...props} /></div>
+}
+
+// Keeps each visible heading addressable without changing its original Markdown content.
+function HeadingPermalink({id, children}: Pick<MarkdownHeadingProps, 'id' | 'children'>) {
+  if (!id) return <>{children}</>
+  const label = textContent(children).trim()
+  return <>
+    {children}
+    <a className='notion-heading-link' href={`#${id}`} aria-label={label ? `链接至：${label}` : '段落链接'}>#</a>
+  </>
+}
+
+function MarkdownHeadingOne({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h2 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h2>
+}
+
+function MarkdownHeadingTwo({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h2 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h2>
+}
+
+function MarkdownHeadingThree({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h3 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h3>
+}
+
+function MarkdownHeadingFour({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h4 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h4>
+}
+
+function MarkdownHeadingFive({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h5 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h5>
+}
+
+function MarkdownHeadingSix({children, node: _node, ...props}: MarkdownHeadingProps) {
+  return <h6 {...props}><HeadingPermalink id={props.id}>{children}</HeadingPermalink></h6>
 }
 
 function NotionCallout({children, color, icon}: NotionElementProps) {
@@ -309,15 +472,27 @@ function removeEmptyReferenceSection(markdown: string): string {
   return markdown.replace(/(?:^|\n)#{1,6}\s*(?:📎\s*)?参考文章\s*\n(?:\s*[-*+]\s*)+\s*$/u, '\n')
 }
 
+function normalizeNotionTableOfContents(markdown: string): string {
+  // HTML custom elements need a hyphen. Notion's underscore tag would otherwise be emitted as prose by rehype-raw.
+  return markdown
+    .replace(/<table_of_contents\s*\/\s*>/gi, '<notion-table-of-contents></notion-table-of-contents>')
+    .replace(/<\/?table_of_contents\b/gi, tag => tag.startsWith('</') ? '</notion-table-of-contents' : '<notion-table-of-contents')
+}
+
 function normalizeNotionMarkdown(markdown: string): string {
   // Notion adds block attributes and raw tables that standard Markdown parsers cannot safely interpret as-is.
   return transformOutsideFencedCode(markdown, prose =>
-    removeEmptyReferenceSection(convertNotionTables(prose)).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, '')
+    normalizeNotionTableOfContents(removeEmptyReferenceSection(convertNotionTables(prose)).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, ''))
   )
 }
 
 const components = {
-  h1: ({children, node: _node, ...props}: MarkdownHeadingProps) => <h2 {...props}>{children}</h2>,
+  h1: MarkdownHeadingOne,
+  h2: MarkdownHeadingTwo,
+  h3: MarkdownHeadingThree,
+  h4: MarkdownHeadingFour,
+  h5: MarkdownHeadingFive,
+  h6: MarkdownHeadingSix,
   pre: MarkdownPre,
   table: MarkdownTable,
   code: MarkdownCode,
@@ -341,7 +516,6 @@ const components = {
   'mention-date': ({children, start, end}: NotionElementProps & {start?: string; end?: string}) => <time className='notion-mention-date'>{children ?? start ?? end}</time>,
   synced_block: ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
   synced_block_reference: ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
-  table_of_contents: () => <nav className='notion-toc' aria-label='文章目录'>文章目录</nav>,
   'empty-block': () => <div className='notion-empty-block' aria-hidden='true' />,
   unknown: NotionUnknown,
   span: ({children, color, underline}: NotionElementProps) => <span className={[colorClass(color), underline === 'true' ? 'notion-underline' : undefined].filter(Boolean).join(' ')}>{children}</span>
@@ -354,7 +528,7 @@ const components = {
 export function NotionMarkdown({markdown, title}: {markdown: string; title?: string}) {
   return <ReactMarkdown
     remarkPlugins={[remarkGfm, remarkMath]}
-    rehypePlugins={[[rehypeRaw], [rehypeSanitize, notionSanitizeSchema], rehypeKatex]}
+    rehypePlugins={[[rehypeRaw], rehypeNotionTableOfContents, [rehypeSanitize, notionSanitizeSchema], rehypeKatex]}
     components={components as Components}
   >{removeDuplicateTitle(normalizeNotionMarkdown(markdown), title)}</ReactMarkdown>
 }
