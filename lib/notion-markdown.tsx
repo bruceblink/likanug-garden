@@ -304,10 +304,15 @@ function convertNotionTables(markdown: string): string {
   })
 }
 
+function removeEmptyReferenceSection(markdown: string): string {
+  // Empty reference blocks are emitted as a heading followed by a lone list marker.
+  return markdown.replace(/(?:^|\n)#{1,6}\s*(?:📎\s*)?参考文章\s*\n(?:\s*[-*+]\s*)+\s*$/u, '\n')
+}
+
 function normalizeNotionMarkdown(markdown: string): string {
   // Notion adds block attributes and raw tables that standard Markdown parsers cannot safely interpret as-is.
   return transformOutsideFencedCode(markdown, prose =>
-    convertNotionTables(prose).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, '')
+    removeEmptyReferenceSection(convertNotionTables(prose)).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, '')
   )
 }
 
