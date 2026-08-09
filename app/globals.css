@@ -104,7 +104,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .home-count { margin: 20px 0 0; color: var(--accent-soft); font-size: .78rem; }
 
 .featured-section, .post-section, .topic-section { padding: 48px 0; }
-.post-section, .topic-section { border-top: 1px solid var(--line); }
+.post-section, .topic-section {
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 76px;
+}
 .section-heading {
   display: flex;
   align-items: end;

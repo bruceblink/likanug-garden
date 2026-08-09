@@ -3,12 +3,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import './globals.css'
 import 'katex/dist/katex.min.css'
-import { site } from '@/lib/site'
+import { baseUrl, site } from '@/lib/site'
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: { default: site.name, template: `%s | ${site.name}` },
-  description: site.description
+  description: site.description,
+  alternates: { canonical: baseUrl }
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
