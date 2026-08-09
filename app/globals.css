@@ -75,8 +75,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 }
 
 .site-nav { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: .82rem; }
-.site-nav a { display: inline-flex; min-height: 44px; align-items: center; }
+.site-nav a { display: inline-flex; min-height: 44px; align-items: center; white-space: nowrap; }
 .site-nav a:hover { color: var(--accent); }
+.site-nav-external::after { content: '\2197'; margin-left: 4px; color: var(--accent); font-size: .9em; }
 
 .home-intro { padding: 76px 0 52px; border-bottom: 1px solid var(--line); }
 .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: .76rem; font-weight: 700; }

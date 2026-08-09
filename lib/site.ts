@@ -4,6 +4,7 @@ const canonicalSiteUrl = 'https://blog.likanug.top'
 export const site = {
   // Published links must stay on the blog host, even if a deployment inherits a parent-site URL.
   url: canonicalSiteUrl,
+  mainSiteUrl: 'https://likanug.top',
   name: 'Likanug // lab',
   description:
     env.NEXT_PUBLIC_SITE_DESCRIPTION ??

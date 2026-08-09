@@ -12,6 +12,9 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Render the current year instead of requiring a yearly footer edit.
+  const copyrightYear = new Date().getFullYear()
+
   return (
     <html lang='zh-CN' data-scroll-behavior='smooth'>
       <body>
@@ -24,12 +27,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <nav className='site-nav' aria-label='主导航'>
               <Link href='/#posts'>文章</Link>
               <Link href='/#topics'>主题</Link>
-              <Link href='https://likanug.top'>主站</Link>
+              <a
+                className='site-nav-external'
+                href={site.mainSiteUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label='前往主站 likanug.top（在新标签页打开）'
+              >
+                主站
+              </a>
             </nav>
           </div>
         </header>
         {children}
-        <footer><div className='shell footer-content'>© 2026 {site.name} · 记录、整理、发布。</div></footer>
+        <footer><div className='shell footer-content'>© {copyrightYear} {site.name} · 记录、整理、发布。</div></footer>
       </body>
     </html>
   )
