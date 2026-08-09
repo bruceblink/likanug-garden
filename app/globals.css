@@ -313,7 +313,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .notion-content .notion-empty-block { min-height: .7rem; }
 .notion-content .notion-synced-block { border-left: 1px solid var(--line); padding-left: 1rem; }
 .notion-content .notion-toc { margin: 1.6rem 0; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; background: var(--surface); padding: .85rem 1rem; color: var(--muted); font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: .8rem; }
-.notion-content .notion-toc-label { margin: 0; color: var(--accent-soft); font-size: .76rem; font-weight: 700; }
+.notion-content .notion-toc > summary { color: var(--accent-soft); cursor: pointer; font-size: .76rem; font-weight: 700; list-style-position: outside; }
+.notion-content .notion-toc > summary::marker { color: var(--accent); }
+.notion-content .notion-toc[open] > summary { margin-bottom: .75rem; }
 .notion-content .notion-toc-list { display: grid; gap: .34rem; margin: .65rem 0 0; padding: 0; list-style: none; }
 .notion-content .notion-toc-list li { min-width: 0; }
 .notion-content .notion-toc-list li + li { margin-top: 0; }

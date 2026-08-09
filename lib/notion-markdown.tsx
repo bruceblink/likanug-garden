@@ -9,6 +9,7 @@ import {MermaidDiagram} from './mermaid-diagram'
 
 type NotionElementProps = {
   children?: ReactNode
+  className?: string
   color?: string
   icon?: string
   url?: string
@@ -16,6 +17,7 @@ type NotionElementProps = {
   alt?: string
   inline?: string
   underline?: string
+  open?: boolean
 }
 
 type MarkdownCodeProps = ComponentProps<'code'> & {
@@ -89,7 +91,7 @@ const notionSanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     callout: ['icon', 'color'],
-    details: ['color'],
+    details: ['color', 'open', ['className', 'notion-toc']],
     span: ['color', 'underline'],
     file: ['src', 'color'],
     page: ['url', 'color'],
@@ -219,13 +221,13 @@ function collectMarkdownHeadings(root: HastNode): MarkdownHeading[] {
 function createTableOfContents(headings: MarkdownHeading[]): HastNode {
   return {
     type: 'element',
-    tagName: 'nav',
-    properties: {className: ['notion-toc'], ariaLabel: '文章目录'},
+    tagName: 'details',
+    properties: {className: ['notion-toc']},
     children: [
       {
         type: 'element',
-        tagName: 'p',
-        properties: {className: ['notion-toc-label']},
+        tagName: 'summary',
+        properties: {},
         children: [{type: 'text', value: '目录'}]
       },
       {
@@ -248,6 +250,13 @@ function createTableOfContents(headings: MarkdownHeading[]): HastNode {
   }
 }
 
+function containsTableOfContents(nodes: HastNode[]): boolean {
+  return nodes.some(node =>
+    node.tagName === 'notion-table-of-contents' ||
+    (node.children ? containsTableOfContents(node.children) : false)
+  )
+}
+
 // Replaces every official Notion placeholder with the same outline used for heading IDs.
 function replaceTableOfContents(nodes: HastNode[], headings: MarkdownHeading[]): HastNode[] {
   return nodes.flatMap(node => {
@@ -267,7 +276,13 @@ function replaceTableOfContents(nodes: HastNode[], headings: MarkdownHeading[]):
 function rehypeNotionTableOfContents() {
   return (root: HastNode) => {
     const headings = collectMarkdownHeadings(root)
-    if (root.children) root.children = replaceTableOfContents(root.children, headings)
+    if (!root.children) return
+
+    const hasPlaceholder = containsTableOfContents(root.children)
+    const renderedNodes = replaceTableOfContents(root.children, headings)
+    root.children = !hasPlaceholder && headings.length >= 4
+      ? [createTableOfContents(headings), ...renderedNodes]
+      : renderedNodes
   }
 }
 
@@ -307,7 +322,7 @@ function HeadingPermalink({id, children}: Pick<MarkdownHeadingProps, 'id' | 'chi
   const label = textContent(children).trim()
   return <>
     {children}
-    <a className='notion-heading-link' href={`#${id}`} aria-label={label ? `链接至：${label}` : '段落链接'}>#</a>
+    <a className='notion-heading-link' href={`#${id}`} tabIndex={-1} aria-label={label ? `链接至：${label}` : '段落链接'}>#</a>
   </>
 }
 
@@ -342,8 +357,8 @@ function NotionCallout({children, color, icon}: NotionElementProps) {
   </aside>
 }
 
-function NotionDetails({children, color}: NotionElementProps) {
-  return <details className={colorClass(color)}>{children}</details>
+function NotionDetails({children, className, color, open}: NotionElementProps) {
+  return <details className={[className, colorClass(color)].filter(Boolean).join(' ')} open={open}>{children}</details>
 }
 
 function NotionColumns({children}: NotionElementProps) {
