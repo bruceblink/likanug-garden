@@ -30,7 +30,8 @@ export async function GET() {
       url: new URL(post.href, `${baseUrl}/`).toString(),
       title: post.title,
       summary: post.summary || undefined,
-      content_text: post.summary || post.title,
+      // Leave the body empty when Notion has no summary instead of repeating the title.
+      content_text: post.summary || undefined,
       date_published: post.publishDate,
       tags: [...(post.category ? [post.category] : []), ...post.tags]
     }))
