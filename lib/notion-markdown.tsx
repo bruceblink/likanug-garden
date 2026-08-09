@@ -39,6 +39,10 @@ type MarkdownHeadingProps = ComponentProps<'h1'> & {
   node?: unknown
 }
 
+type MarkdownTableProps = ComponentProps<'table'> & {
+  node?: unknown
+}
+
 const notionTags = [
   'callout',
   'columns',
@@ -155,6 +159,10 @@ function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
   }
 
   return <pre {...props}>{children}</pre>
+}
+
+function MarkdownTable({node: _node, ...props}: MarkdownTableProps) {
+  return <div className='notion-table-scroll'><table {...props} /></div>
 }
 
 function NotionCallout({children, color, icon}: NotionElementProps) {
@@ -306,6 +314,7 @@ function normalizeNotionMarkdown(markdown: string): string {
 const components = {
   h1: ({children, node: _node, ...props}: MarkdownHeadingProps) => <h2 {...props}>{children}</h2>,
   pre: MarkdownPre,
+  table: MarkdownTable,
   code: MarkdownCode,
   a: ExternalLink,
   img: MarkdownImage,
