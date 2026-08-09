@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import './globals.css'
 import 'katex/dist/katex.min.css'
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <header className='site-header'>
           <div className='shell site-header-inner'>
             <Link className='brand' href='/' aria-label={`${site.name} 首页`}>
-              <span className='brand-mark' aria-hidden='true'>l.</span>
+              <Image className='brand-mark' src='/icon.svg' alt='' width={28} height={28} priority />
               <span>{site.name}</span>
             </Link>
             <nav className='site-nav' aria-label='主导航'>

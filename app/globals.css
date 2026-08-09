@@ -67,15 +67,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 }
 
 .brand-mark {
-  display: inline-grid;
+  display: block;
+  flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  place-items: center;
-  border: 1px solid var(--accent);
-  border-radius: 5px;
-  color: var(--accent);
-  font-family: "Cascadia Code", Consolas, ui-monospace, monospace;
-  font-size: .78rem;
+  border-radius: 7px;
 }
 
 .site-nav { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: .82rem; }

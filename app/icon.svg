@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <title>Likanug // lab</title>
+  <rect width="32" height="32" rx="8" fill="#0B1009"/>
+  <rect x="1" y="1" width="30" height="30" rx="7" stroke="#6DE787" stroke-opacity="0.45"/>
+  <path d="M7 7v15h13" stroke="#F7FFF1" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 22h5M22 20v5" stroke="#6DE787" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="25" cy="8" r="2" fill="#F7B955"/>
+</svg>

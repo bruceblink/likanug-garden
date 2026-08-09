@@ -2,7 +2,7 @@ const env = process.env
 
 export const site = {
   url: env.NEXT_PUBLIC_SITE_URL ?? 'https://blog.likanug.top',
-  name: env.NEXT_PUBLIC_SITE_NAME ?? 'likanug',
+  name: 'Likanug // lab',
   description:
     env.NEXT_PUBLIC_SITE_DESCRIPTION ??
     'Build quietly. Ship relentlessly. // 把好奇心编译成作品。',
