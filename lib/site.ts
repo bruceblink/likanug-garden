@@ -1,5 +1,6 @@
 const env = process.env
 const defaultSiteUrl = 'https://blog.likanug.top'
+const mainSiteHosts = new Set(['likanug.top', 'www.likanug.top'])
 
 // Normalize the public origin used by canonical and feed links, falling back when a preview value is invalid.
 function publicSiteUrl(value: string | undefined): string {
@@ -8,6 +9,8 @@ function publicSiteUrl(value: string | undefined): string {
   try {
     const url = new URL(candidate)
     if (!['http:', 'https:'].includes(url.protocol)) return defaultSiteUrl
+    // The blog is a separate deployment; a parent-site value would generate wrong feed and canonical URLs.
+    if (mainSiteHosts.has(url.hostname.toLowerCase())) return defaultSiteUrl
     return url.origin
   } catch {
     return defaultSiteUrl
