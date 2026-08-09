@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getPostLookup, getPostMarkdown } from '@/lib/notion'
 import { NotionMarkdown } from '@/lib/notion-markdown'
-import { site } from '@/lib/site'
+import { baseUrl, site } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,16 +23,16 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     }
   }
 
-  const canonicalPath = `/posts/${encodeURIComponent(post.slug)}`
+  const canonicalUrl = new URL(post.href, `${baseUrl}/`).toString()
   const description = post.summary || site.description
 
   return {
     title: post.title,
     description,
-    alternates: { canonical: canonicalPath },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       type: 'article',
-      url: canonicalPath,
+      url: canonicalUrl,
       siteName: site.name,
       title: post.title,
       description,
