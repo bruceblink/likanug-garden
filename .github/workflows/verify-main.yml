@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Lint, typecheck and build
+    name: Test, typecheck and build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
@@ -36,8 +36,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
+      - name: Unit tests
+        run: pnpm test
 
       - name: Typecheck
         run: pnpm typecheck
