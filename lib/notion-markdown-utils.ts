@@ -54,6 +54,7 @@ function transformOutsideInlineCode(markdown: string, transform: (prose: string)
   return transformed.replace(/\u0000(\d+)\u0000/g, (_, index: string) => inlineCode[Number(index)])
 }
 
+// 把 v1 表格单元格折叠成 GFM 可接受的一行，并保留换行与竖线。
 function tableCellToMarkdown(cell: string): string {
   return cell
     .trim()
@@ -87,6 +88,7 @@ function convertNotionTables(markdown: string): string {
   })
 }
 
+// 删除 Notion 输出的空“参考文章”区块，避免页面出现孤立列表标记。
 function removeEmptyReferenceSection(markdown: string): string {
   return markdown.replace(/(?:^|\n)#{1,6}\s*(?:📎\s*)?参考文章\s*\n(?:\s*[-*+]\s*)+\s*$/u, '\n')
 }

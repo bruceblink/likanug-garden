@@ -195,6 +195,7 @@ function MarkdownCode({children, className, inline: _inline, node: _node, ...pro
 }
 
 function mediaSource(src?: unknown, source?: unknown): string | undefined {
+  // v1 使用 src，v2 使用 source；统一处理后再执行协议校验。
   const value = typeof source === 'string' ? source : src
   return typeof value === 'string' ? safeHref(value) : undefined
 }
@@ -300,6 +301,7 @@ function containsTableOfContents(nodes: HastNode[]): boolean {
 }
 
 function isTableOfContentsPlaceholder(node: HastNode): boolean {
+  // 目录占位标签在 rehypeRaw 中可能位于段落内部，需要单独识别。
   return node.type === 'element' && node.tagName === 'notion-table-of-contents'
 }
 
@@ -421,10 +423,12 @@ function NotionCallout({children, color, icon}: NotionElementProps) {
 }
 
 function NotionQuote({children}: NotionElementProps) {
+  // v2 quote 直接映射为语义化 blockquote。
   return <blockquote>{children}</blockquote>
 }
 
 function NotionTodo({children, checked}: NotionElementProps) {
+  // v2 todo 的 checked 属性只决定展示状态，不允许文章页面修改它。
   return <div className='notion-todo'>
     <input type='checkbox' checked={checked === 'true'} readOnly aria-label={checked === 'true' ? '已完成' : '未完成'} />
     <span>{children}</span>
@@ -455,6 +459,7 @@ function NotionMedia({children, src, source, className}: NotionElementProps & {c
 }
 
 function NotionImage({children, src, source, alt = ''}: NotionElementProps) {
+  // v2 image 的 caption 作为图注显示，签名 URL 仍使用普通 img 加载。
   const safeSrc = mediaSource(src, source)
   if (!safeSrc) return null
   // Notion 的图片 URL 是短期签名地址，不能交给 next/image 做固定域名优化。
@@ -473,6 +478,7 @@ function NotionVideo({src, source}: NotionElementProps) {
 }
 
 function NotionDate({children, start, end, startTime, endTime, timeZone}: NotionElementProps) {
+  // 日期标签只负责展示 Notion 返回的日期和时区信息。
   const label = children ?? [start, end].filter(Boolean).join(' – ')
   const time = [startTime, endTime].filter(Boolean).join(' – ')
   return <time className='notion-mention-date' dateTime={start}>{label}{time ? ` ${time}` : ''}{timeZone ? ` (${timeZone})` : ''}</time>
