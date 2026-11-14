@@ -325,6 +325,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .notion-content hr { margin: 2.6rem 0; border: 0; border-top: 1px solid var(--line); }
 .notion-content .notion-callout { display: flex; gap: .75rem; margin: 1.5rem 0; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 4px; background: var(--surface); padding: 1rem 1.1rem; }
 .notion-content .notion-callout-icon { flex: 0 0 auto; font-size: 1.15rem; line-height: 1.7; }
+.notion-content .notion-todo { display: flex; gap: .55rem; align-items: flex-start; margin: 1rem 0; }
+.notion-content .notion-todo input { flex: 0 0 auto; margin-top: .45rem; accent-color: var(--accent); }
+.notion-content .notion-todo > span { min-width: 0; }
 .notion-content details { margin: 1.4rem 0; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); padding: .75rem 1rem; }
 .notion-content details > summary { color: var(--text); cursor: pointer; font-weight: 700; }
 .notion-content details[open] > summary { margin-bottom: .75rem; }
@@ -358,6 +361,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .notion-content .notion-color-purple { color: #dbb8ff; }
 .notion-content .notion-color-pink { color: #ffb4d1; }
 .notion-content .notion-color-gray { color: var(--muted); }
+.notion-content .notion-color-gray_bg, .notion-content .notion-color-lightgray_bg { background: color-mix(in srgb, var(--muted) 18%, transparent); }
+.notion-content .notion-color-brown_bg, .notion-content .notion-color-orange_bg { background: color-mix(in srgb, var(--warm) 18%, transparent); }
+.notion-content .notion-color-yellow_bg { background: color-mix(in srgb, #ffe08d 18%, transparent); }
+.notion-content .notion-color-green_bg { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.notion-content .notion-color-blue_bg { background: color-mix(in srgb, #a9cfff 18%, transparent); }
+.notion-content .notion-color-purple_bg { background: color-mix(in srgb, #dbb8ff 18%, transparent); }
+.notion-content .notion-color-pink_bg { background: color-mix(in srgb, #ffb4d1 18%, transparent); }
 .notion-content .katex-display { overflow-x: auto; overflow-y: hidden; padding: .35rem 0; }
 .mermaid-diagram-canvas, .mermaid-diagram-loading, .mermaid-diagram-error { margin: 1.6rem 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: #080d09; padding: 18px; }
 .mermaid-diagram-canvas svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }

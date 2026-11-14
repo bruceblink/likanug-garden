@@ -6,12 +6,18 @@ import SearchForm from './search-form'
 export const dynamic = 'force-dynamic'
 const POSTS_PER_PAGE = 8
 
+type SearchParam = string | string[] | undefined
 type SearchParams = Promise<{
-  page?: string
-  category?: string
-  tag?: string
-  q?: string
+  page?: SearchParam
+  category?: SearchParam
+  tag?: SearchParam
+  q?: SearchParam
 }>
+
+// Next.js 可能把重复查询参数解析为数组；入口统一成字符串后再传给内部筛选逻辑。
+function singleSearchParam(value: SearchParam): string {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
+}
 
 function href(params: Record<string, string | number | undefined>) {
   const search = new URLSearchParams()
@@ -47,7 +53,11 @@ function PostTags({post, category, query}: {post: Post; category: string; query:
 }
 
 export default async function HomePage({searchParams}: {searchParams: SearchParams}) {
-  const {page: rawPage, category = '', tag = '', q = ''} = await searchParams
+  const rawParams = await searchParams
+  const rawPage = singleSearchParam(rawParams.page)
+  const category = singleSearchParam(rawParams.category)
+  const tag = singleSearchParam(rawParams.tag)
+  const q = singleSearchParam(rawParams.q)
   const {posts, categories, tags, error} = await getBlogData()
   const filtered = posts.filter(post => matches(post, category, tag, q))
   const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE))

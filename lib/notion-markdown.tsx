@@ -6,6 +6,7 @@ import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import {MermaidDiagram} from './mermaid-diagram'
+import {normalizeNotionMarkdown, removeDuplicateTitle} from './notion-markdown-utils'
 
 type NotionElementProps = {
   children?: ReactNode
@@ -14,10 +15,19 @@ type NotionElementProps = {
   icon?: string
   url?: string
   src?: unknown
+  source?: unknown
   alt?: string
   inline?: string
   underline?: string
   open?: boolean
+  heading?: string
+  checked?: string
+  ratio?: string
+  start?: string
+  end?: string
+  startTime?: string
+  endTime?: string
+  timeZone?: string
 }
 
 type MarkdownCodeProps = ComponentProps<'code'> & {
@@ -61,25 +71,40 @@ type MarkdownHeading = {
 
 const notionTags = [
   'callout',
+  'quote',
+  'toggle',
+  'todo',
   'columns',
   'column',
   'file',
+  'image',
   'page',
+  'folder',
   'database',
   'pdf',
   'audio',
   'video',
+  'bookmark',
+  'embed',
+  'link-preview',
+  'mention',
   'mention-user',
   'mention-page',
   'mention-database',
   'mention-data-source',
   'mention-agent',
   'mention-date',
+  'date',
   'synced_block',
   'synced_block_reference',
+  'synced-block',
+  'synced-block-reference',
   'notion-table-of-contents',
+  'table-of-contents',
   'empty-block',
-  'unknown'
+  'unknown',
+  'external_object_instance',
+  'custom-block'
 ]
 
 const sanitizedHeadingIdPrefix = defaultSchema.clobberPrefix ?? ''
@@ -91,22 +116,34 @@ const notionSanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     callout: ['icon', 'color'],
+    quote: ['color'],
+    toggle: ['heading', 'color'],
+    todo: ['checked', 'color'],
     details: ['color', 'open', ['className', 'notion-toc']],
     span: ['color', 'underline'],
-    file: ['src', 'color'],
+    file: ['src', 'source', 'color'],
+    image: ['src', 'source', 'color'],
     page: ['url', 'color'],
+    folder: ['url', 'color'],
     database: ['url', 'inline', 'icon', 'color'],
-    pdf: ['src', 'color'],
-    audio: ['src', 'color', 'controls'],
-    video: ['src', 'color', 'controls', 'poster', 'width', 'height'],
+    pdf: ['src', 'source', 'color'],
+    audio: ['src', 'source', 'color', 'controls'],
+    video: ['src', 'source', 'color', 'controls', 'poster', 'width', 'height'],
+    bookmark: ['url', 'source'],
+    embed: ['url', 'source'],
+    'link-preview': ['url', 'source'],
+    mention: ['url', 'type'],
     'mention-user': ['url'],
     'mention-page': ['url'],
     'mention-database': ['url'],
     'mention-data-source': ['url'],
     'mention-agent': ['url'],
     'mention-date': ['start', 'end', 'starttime', 'timezone'],
+    date: ['start', 'end', 'startTime', 'endTime', 'timeZone'],
     synced_block: ['url'],
     synced_block_reference: ['url'],
+    'synced-block': ['url'],
+    'synced-block-reference': ['url', 'notice'],
     unknown: ['url', 'alt'],
     nav: ['ariaLabel', ['className', 'notion-toc']],
     p: [...(defaultSchema.attributes?.p ?? []), ['className', 'notion-toc-label']],
@@ -155,6 +192,11 @@ function MarkdownImage({src, alt = '', node: _node, ...props}: MarkdownImageProp
 function MarkdownCode({children, className, inline: _inline, node: _node, ...props}: MarkdownCodeProps) {
   const language = className?.match(/language-([\w-]+)/)?.[1]?.toLowerCase()
   return <code className={className} data-language={language} {...props}>{children}</code>
+}
+
+function mediaSource(src?: unknown, source?: unknown): string | undefined {
+  const value = typeof source === 'string' ? source : src
+  return typeof value === 'string' ? safeHref(value) : undefined
 }
 
 function textContent(node: ReactNode): string {
@@ -257,11 +299,32 @@ function containsTableOfContents(nodes: HastNode[]): boolean {
   )
 }
 
+function isTableOfContentsPlaceholder(node: HastNode): boolean {
+  return node.type === 'element' && node.tagName === 'notion-table-of-contents'
+}
+
 // Replaces every official Notion placeholder with the same outline used for heading IDs.
 function replaceTableOfContents(nodes: HastNode[], headings: MarkdownHeading[]): HastNode[] {
   return nodes.flatMap(node => {
-    if (node.type === 'element' && node.tagName === 'notion-table-of-contents') {
+    if (isTableOfContentsPlaceholder(node)) {
       return headings.length > 0 ? [createTableOfContents(headings)] : []
+    }
+
+    // 自定义标签会先被 Markdown 解析器放进 p；提升到同级，避免 details 嵌套在 p 中触发 hydration 错误。
+    if (node.tagName === 'p' && node.children?.some(isTableOfContentsPlaceholder)) {
+      const replacement: HastNode[] = []
+      let proseChildren: HastNode[] = []
+      for (const child of node.children) {
+        if (isTableOfContentsPlaceholder(child)) {
+          if (proseChildren.length > 0) replacement.push({...node, children: proseChildren})
+          if (headings.length > 0) replacement.push(createTableOfContents(headings))
+          proseChildren = []
+        } else {
+          proseChildren.push(child)
+        }
+      }
+      if (proseChildren.length > 0) replacement.push({...node, children: proseChildren})
+      return replacement
     }
 
     if (node.children) node.children = replaceTableOfContents(node.children, headings)
@@ -357,6 +420,17 @@ function NotionCallout({children, color, icon}: NotionElementProps) {
   </aside>
 }
 
+function NotionQuote({children}: NotionElementProps) {
+  return <blockquote>{children}</blockquote>
+}
+
+function NotionTodo({children, checked}: NotionElementProps) {
+  return <div className='notion-todo'>
+    <input type='checkbox' checked={checked === 'true'} readOnly aria-label={checked === 'true' ? '已完成' : '未完成'} />
+    <span>{children}</span>
+  </div>
+}
+
 function NotionDetails({children, className, color, open}: NotionElementProps) {
   return <details className={[className, colorClass(color)].filter(Boolean).join(' ')} open={open}>{children}</details>
 }
@@ -369,143 +443,43 @@ function NotionColumn({children}: NotionElementProps) {
   return <div className='notion-column'>{children}</div>
 }
 
-function NotionReference({children, url, className}: NotionElementProps & {className?: string}) {
-  return <ExternalLink className={`notion-reference ${className ?? ''}`.trim()} href={url}>{children ?? url ?? '打开 Notion'}</ExternalLink>
+function NotionReference({children, url, source, className}: NotionElementProps & {className?: string}) {
+  const reference = typeof source === 'string' ? source : url
+  return <ExternalLink className={`notion-reference ${className ?? ''}`.trim()} href={reference}>{children ?? reference ?? '打开 Notion'}</ExternalLink>
 }
 
-function NotionMedia({children, src, className}: NotionElementProps & {className?: string}) {
-  const safeUrl = typeof src === 'string' ? safeHref(src) : undefined
+function NotionMedia({children, src, source, className}: NotionElementProps & {className?: string}) {
+  const safeUrl = mediaSource(src, source)
   if (!safeUrl) return null
   return <a className={`notion-media ${className ?? ''}`.trim()} href={safeUrl} target='_blank' rel='noreferrer'>{children ?? '打开媒体文件'}</a>
 }
 
-function NotionAudio({src}: NotionElementProps) {
-  const safeUrl = typeof src === 'string' ? safeHref(src) : undefined
+function NotionImage({children, src, source, alt = ''}: NotionElementProps) {
+  const safeSrc = mediaSource(src, source)
+  if (!safeSrc) return null
+  // Notion 的图片 URL 是短期签名地址，不能交给 next/image 做固定域名优化。
+  // eslint-disable-next-line @next/next/no-img-element
+  return <figure><img src={safeSrc} alt={alt || textContent(children)} loading='lazy' decoding='async' /><figcaption>{children}</figcaption></figure>
+}
+
+function NotionAudio({src, source}: NotionElementProps) {
+  const safeUrl = mediaSource(src, source)
   return safeUrl ? <audio controls src={safeUrl}>你的浏览器不支持音频播放。</audio> : null
 }
 
-function NotionVideo({src}: NotionElementProps) {
-  const safeUrl = typeof src === 'string' ? safeHref(src) : undefined
+function NotionVideo({src, source}: NotionElementProps) {
+  const safeUrl = mediaSource(src, source)
   return safeUrl ? <video controls src={safeUrl}>你的浏览器不支持视频播放。</video> : null
+}
+
+function NotionDate({children, start, end, startTime, endTime, timeZone}: NotionElementProps) {
+  const label = children ?? [start, end].filter(Boolean).join(' – ')
+  const time = [startTime, endTime].filter(Boolean).join(' – ')
+  return <time className='notion-mention-date' dateTime={start}>{label}{time ? ` ${time}` : ''}{timeZone ? ` (${timeZone})` : ''}</time>
 }
 
 function NotionUnknown({url, alt}: NotionElementProps) {
   return <p className='notion-unknown'>未支持的 Notion 内容：{alt ?? 'unknown'} {url && <ExternalLink href={url}>在 Notion 中打开</ExternalLink>}</p>
-}
-
-function removeDuplicateTitle(markdown: string, title?: string): string {
-  if (!title) return markdown
-  const normalizedTitle = title.trim().replace(/\s+/g, ' ')
-  const match = markdown.match(/^#\s+(.+?)(?:\s+\{[^\n]*\})?\s*(?:\r?\n|$)/m)
-  if (!match || match.index === undefined) return markdown
-  const heading = match[1].trim().replace(/\s+/g, ' ')
-  if (heading !== normalizedTitle) return markdown
-  return `${markdown.slice(0, match.index)}${markdown.slice(match.index + match[0].length)}`.replace(/^\s+/, '')
-}
-
-/**
- * Applies a Markdown transform only to prose. Fenced source code must remain
- * untouched because examples may legitimately contain HTML-like table text.
- */
-function transformOutsideFencedCode(markdown: string, transform: (prose: string) => string): string {
-  const parts: string[] = []
-  const lines = markdown.split(/\r?\n/)
-  let buffer: string[] = []
-  let fence: {character: string; length: number} | null = null
-
-  const flushProse = () => {
-    if (buffer.length > 0) {
-      parts.push(transform(buffer.join('\n')))
-      buffer = []
-    }
-  }
-
-  for (const line of lines) {
-    const marker = line.match(/^\s*(`{3,}|~{3,})/)
-    if (fence) {
-      buffer.push(line)
-      const closingFence = new RegExp(`^\\s*${fence.character}{${fence.length},}\\s*$`)
-      if (closingFence.test(line)) {
-        parts.push(buffer.join('\n'))
-        buffer = []
-        fence = null
-      }
-      continue
-    }
-
-    if (marker) {
-      flushProse()
-      buffer = [line]
-      fence = {character: marker[1][0], length: marker[1].length}
-      continue
-    }
-
-    buffer.push(line)
-  }
-
-  if (buffer.length > 0) {
-    if (fence) parts.push(buffer.join('\n'))
-    else flushProse()
-  }
-
-  return parts.join('\n')
-}
-
-function tableCellToMarkdown(cell: string): string {
-  return cell
-    .trim()
-    .replace(/<br\s*\/?\s*>/gi, '<br />')
-    .replace(/\r?\n\s*/g, '<br />')
-    .replace(/\|/g, '\\|')
-}
-
-/**
- * Converts the tables emitted by Notion's official Markdown API into GFM.
- * This restores Markdown inside cells and gives the first row real table-heading semantics.
- */
-function convertNotionTables(markdown: string): string {
-  return markdown.replace(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi, (table, attributes: string, body: string) => {
-    if (!/\bheader-row\s*=\s*(?:"true"|'true'|true)(?=\s|$)/i.test(attributes)) {
-      return `\n\n${table.trim()}\n\n`
-    }
-
-    const rows = Array.from(body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi))
-      .map(([, row]) => Array.from(row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi))
-        .map(([, cell]) => tableCellToMarkdown(cell)))
-      .filter(row => row.length > 0)
-
-    if (rows.length === 0) return `\n\n${table.trim()}\n\n`
-
-    const columnCount = Math.max(...rows.map(row => row.length))
-    const paddedRows = rows.map(row => Array.from({length: columnCount}, (_, index) => row[index] ?? ''))
-    const [header, ...bodyRows] = paddedRows
-    const gfmRows = [
-      `| ${header.join(' | ')} |`,
-      `| ${header.map(() => '---').join(' | ')} |`,
-      ...bodyRows.map(row => `| ${row.join(' | ')} |`)
-    ]
-
-    return `\n\n${gfmRows.join('\n')}\n\n`
-  })
-}
-
-function removeEmptyReferenceSection(markdown: string): string {
-  // Empty reference blocks are emitted as a heading followed by a lone list marker.
-  return markdown.replace(/(?:^|\n)#{1,6}\s*(?:📎\s*)?参考文章\s*\n(?:\s*[-*+]\s*)+\s*$/u, '\n')
-}
-
-function normalizeNotionTableOfContents(markdown: string): string {
-  // HTML custom elements need a hyphen. Notion's underscore tag would otherwise be emitted as prose by rehype-raw.
-  return markdown
-    .replace(/<table_of_contents\s*\/\s*>/gi, '<notion-table-of-contents></notion-table-of-contents>')
-    .replace(/<\/?table_of_contents\b/gi, tag => tag.startsWith('</') ? '</notion-table-of-contents' : '<notion-table-of-contents')
-}
-
-function normalizeNotionMarkdown(markdown: string): string {
-  // Notion adds block attributes and raw tables that standard Markdown parsers cannot safely interpret as-is.
-  return transformOutsideFencedCode(markdown, prose =>
-    normalizeNotionTableOfContents(removeEmptyReferenceSection(convertNotionTables(prose)).replace(/\s+\{(?:color="[^"]+"|toggle="true")\}/g, ''))
-  )
 }
 
 const components = {
@@ -521,23 +495,34 @@ const components = {
   a: ExternalLink,
   img: MarkdownImage,
   callout: NotionCallout,
+  quote: NotionQuote,
+  todo: NotionTodo,
   details: NotionDetails,
   columns: NotionColumns,
   column: NotionColumn,
   file: NotionMedia,
+  image: NotionImage,
   pdf: NotionMedia,
   audio: NotionAudio,
   video: NotionVideo,
+  bookmark: NotionReference,
+  embed: NotionReference,
+  'link-preview': NotionReference,
   page: NotionReference,
+  folder: NotionReference,
   database: NotionReference,
+  mention: NotionReference,
   'mention-user': NotionReference,
   'mention-page': NotionReference,
   'mention-database': NotionReference,
   'mention-data-source': NotionReference,
   'mention-agent': NotionReference,
-  'mention-date': ({children, start, end}: NotionElementProps & {start?: string; end?: string}) => <time className='notion-mention-date'>{children ?? start ?? end}</time>,
+  'mention-date': NotionDate,
+  date: NotionDate,
   synced_block: ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
   synced_block_reference: ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
+  'synced-block': ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
+  'synced-block-reference': ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
   'empty-block': () => <div className='notion-empty-block' aria-hidden='true' />,
   unknown: NotionUnknown,
   span: ({children, color, underline}: NotionElementProps) => <span className={[colorClass(color), underline === 'true' ? 'notion-underline' : undefined].filter(Boolean).join(' ')}>{children}</span>

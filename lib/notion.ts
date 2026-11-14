@@ -10,6 +10,12 @@ type NotionPage = {
   last_edited_time: string
 }
 
+type PageMarkdownResponse = {
+  markdown: string
+  truncated: boolean
+  unknown_block_ids: string[]
+}
+
 export type Post = {
   id: string
   title: string
@@ -91,12 +97,25 @@ function propertyDate(property: NotionProperty): string | null {
   return date?.start ?? null
 }
 
+// 先使用发布日期；日期无效时回退到页面创建时间，避免一条坏记录清空整个文章列表。
+function validPublishDate(value: string | null, fallback: string): Date | null {
+  for (const candidate of [value, fallback]) {
+    if (!candidate) continue
+    const date = new Date(candidate)
+    if (!Number.isNaN(date.getTime())) return date
+  }
+  return null
+}
+
 function formatPost(page: NotionPage): Post | null {
   const type = propertySelect(property(page, site.properties.type))[0] ?? ''
   const status = propertySelect(property(page, site.properties.status))[0] ?? ''
   const title = propertyText(property(page, site.properties.title))
   const slug = propertyText(property(page, site.properties.slug)) || page.id
-  const publishDate = propertyDate(property(page, site.properties.date)) ?? page.created_time
+  const publish = validPublishDate(
+    propertyDate(property(page, site.properties.date)),
+    page.created_time
+  )
 
   if (
     !title ||
@@ -106,7 +125,11 @@ function formatPost(page: NotionPage): Post | null {
     return null
   }
 
-  const publish = new Date(publishDate)
+  if (!publish) {
+    console.warn('Skipping Notion post with invalid publish date', page.id)
+    return null
+  }
+
   return {
     id: page.id,
     title,
@@ -145,6 +168,9 @@ async function readAllPages(dataSourceId: string): Promise<NotionPage[]> {
       start_cursor,
       result_type: 'page'
     })
+    if (response.request_status?.type === 'incomplete') {
+      throw new Error('Notion data source query returned incomplete results.')
+    }
     pages.push(
       ...response.results.filter(isFullPage).map(page => ({
         id: page.id,
@@ -159,6 +185,9 @@ async function readAllPages(dataSourceId: string): Promise<NotionPage[]> {
 }
 
 function messageFor(error: unknown): string {
+  if (error instanceof Error && error.message === 'Notion data source query returned incomplete results.') {
+    return 'Notion 数据源结果不完整，文章列表未发布。请缩小数据源范围后重试。'
+  }
   if (isNotionClientError(error)) {
     if (error.code === 'object_not_found') {
       return 'Integration 无法访问此数据库。请在 Notion 数据库右上角 ... > Connections 中添加 likanug Integration。'
@@ -179,12 +208,18 @@ async function readBlogData(): Promise<BlogData> {
     const database = await api.databases.retrieve({
       database_id: site.pageId
     })
-    if (!('data_sources' in database) || database.data_sources.length === 0) {
+    if (!('data_sources' in database)) {
+      return emptyData('Integration 无法读取该 Notion 数据库的数据源。请检查页面访问权限。')
+    }
+    if (database.data_sources.length === 0) {
       return emptyData('该 Notion 数据库没有可读取的数据源。')
     }
 
-    const rows = await readAllPages(database.data_sources[0].id)
-    const posts = rows
+    const rows = (await Promise.all(
+      database.data_sources.map(dataSource => readAllPages(dataSource.id))
+    )).flat()
+    const uniqueRows = Array.from(new Map(rows.map(row => [row.id, row])).values())
+    const posts = uniqueRows
       .map(formatPost)
       .filter((post): post is Post => post !== null)
       .sort((a, b) => b.publishDate.localeCompare(a.publishDate))
@@ -221,33 +256,70 @@ export type PostMarkdown = {
 }
 
 /**
- * Fetches the complete Notion page as enhanced Markdown and fills in blocks
- * that the API reports as unknown (usually because a page is very large).
+ * Fetches the complete Notion page as Notion-flavored Markdown and fills in
+ * blocks that the API reports as unknown.
  */
 async function readPostMarkdown(pageId: string): Promise<PostMarkdown> {
-  const response = await api.pages.retrieveMarkdown({ page_id: pageId })
-  let markdown = response.markdown
+  const responses = new Map<string, PageMarkdownResponse>()
+  const pending = [pageId]
+  let truncated = false
 
-  if (response.unknown_block_ids.length > 0) {
-    const nestedMarkdown = await Promise.all(
-      response.unknown_block_ids.map(async blockId => {
-        try {
-          const blockResponse = await api.pages.retrieveMarkdown({ page_id: blockId })
-          return blockResponse.markdown
-        } catch (error) {
-          // A missing permission should not make the rest of the article disappear.
-          console.warn(`Unable to retrieve Notion block ${blockId}`, error)
-          return ''
-        }
+  // 使用 v2，确保块之间有明确空行，并使用稳定的 Notion-flavored Markdown。
+  while (pending.length > 0) {
+    const currentId = pending.shift() as string
+    if (responses.has(currentId)) continue
+
+    try {
+      const response = await api.pages.retrieveMarkdown({
+        page_id: currentId,
+        markdown_version: 'v2'
       })
-    )
-    markdown = [markdown, ...nestedMarkdown].filter(Boolean).join('\n\n')
+      const normalizedResponse: PageMarkdownResponse = {
+        markdown: response.markdown,
+        truncated: response.truncated,
+        unknown_block_ids: response.unknown_block_ids.map(String)
+      }
+      responses.set(currentId, normalizedResponse)
+      truncated ||= normalizedResponse.truncated
+      pending.push(...normalizedResponse.unknown_block_ids)
+    } catch (error) {
+      // 权限不足的未知块保留原占位符，不让整篇文章消失。
+      console.warn(`Unable to retrieve Notion block ${currentId}`, error)
+    }
   }
 
+  const unresolved = new Set<string>()
+  const resolveMarkdown = (response: PageMarkdownResponse, ancestors: Set<string>): string => {
+    const markerPattern = /<unknown\b[^>]*(?:\/>|>[\s\S]*?<\/unknown>)/gi
+    return response.markdown.replace(markerPattern, marker => {
+      const url = marker.match(/\burl\s*=\s*["']([^"']+)["']/i)?.[1]
+      const markerId = url?.split('#').pop()
+      const childId = response.unknown_block_ids.find(id => id === markerId || url?.includes(id))
+      if (!childId || ancestors.has(childId)) {
+        if (childId) unresolved.add(childId)
+        return marker
+      }
+
+      const child = responses.get(childId)
+      if (!child) {
+        unresolved.add(childId)
+        return marker
+      }
+
+      truncated ||= child.truncated
+      const nextAncestors = new Set(ancestors)
+      nextAncestors.add(childId)
+      return resolveMarkdown(child, nextAncestors)
+    })
+  }
+
+  const root = responses.get(pageId)
+  if (!root) throw new Error('Unable to retrieve Notion page Markdown.')
+
   return {
-    markdown,
-    truncated: response.truncated,
-    unknownBlockIds: response.unknown_block_ids.map(String)
+    markdown: resolveMarkdown(root, new Set([pageId])),
+    truncated,
+    unknownBlockIds: [...unresolved]
   }
 }
 
