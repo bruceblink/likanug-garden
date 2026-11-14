@@ -36,7 +36,7 @@ pnpm install --frozen-lockfile
 
 ### 3. 配置环境变量
 
-复制 `.env.example`，再按环境填写：
+生产环境使用 Cloudflare Worker 变量和 Secret。复制 `.env.example`，再按环境填写：
 
 ```dotenv
 NOTION_PAGE_ID=你的数据库ID
@@ -50,6 +50,14 @@ REVALIDATE_SECONDS=300
 ```
 
 `NOTION_API_KEY` 必须只存在于服务端环境。Astro 版本使用 `PUBLIC_SITE_*` 和 `REVALIDATE_SECONDS`。为了迁移兼容，代码仍可读取旧的 `NEXT_PUBLIC_*` 变量名。
+
+本地 Cloudflare Worker 预览使用被 Git 忽略的 `.dev.vars`。可以从示例复制：
+
+```bash
+cp .env.example .dev.vars
+```
+
+修改 `.dev.vars` 后，先重新运行 `pnpm build`，再运行 `pnpm preview`。构建阶段会把 Wrangler 的本地变量写入预览产物；只重启预览服务不会重新读取刚修改的变量。
 
 Notion 字段名和发布值可以通过以下变量映射：
 
@@ -83,6 +91,7 @@ pnpm build
 使用 Cloudflare Worker 运行时预览构建结果：
 
 ```bash
+pnpm build
 pnpm preview
 ```
 
