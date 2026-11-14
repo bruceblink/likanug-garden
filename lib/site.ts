@@ -51,6 +51,8 @@ export const site = {
   revalidate: revalidateSeconds(env.REVALIDATE_SECONDS ?? env.NEXT_PUBLIC_REVALIDATE_SECONDS),
   // Keep the API version explicit because page Markdown is part of the newer Notion API surface.
   notionVersion: notionApiVersion(env.NOTION_API_VERSION),
+  // 测试代理可以替换 Notion API 地址；生产环境保持官方默认地址。
+  notionBaseUrl: env.NOTION_API_BASE_URL ?? 'https://api.notion.com',
   pageId: env.NOTION_PAGE_ID ?? '',
   apiKey: env.NOTION_API_KEY ?? '',
   properties: {

@@ -6,7 +6,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import {normalizeNotionMarkdown, removeDuplicateTitle} from './notion-markdown-utils'
+import {normalizeNotionMarkdown, removeDuplicateTitle} from './notion-markdown-utils.ts'
 
 type NotionElementProps = {
   children?: ReactNode

@@ -42,6 +42,8 @@ pnpm install --frozen-lockfile
 NOTION_PAGE_ID=你的数据库ID
 NOTION_API_KEY=你的IntegrationSecret
 NOTION_API_VERSION=2026-03-11
+# 仅本地测试代理使用；生产环境留空。
+NOTION_API_BASE_URL=
 PUBLIC_SITE_URL=https://你的博客域名
 PUBLIC_SITE_DESCRIPTION=你的站点描述
 REVALIDATE_SECONDS=300

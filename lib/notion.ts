@@ -1,5 +1,5 @@
 import { Client, isFullPage, isNotionClientError } from '@notionhq/client'
-import { site } from './site'
+import { site } from './site.ts'
 
 type NotionProperty = Record<string, unknown>
 type NotionPage = {
@@ -49,7 +49,7 @@ const emptyData = (error?: string): BlogData => ({
   error
 })
 
-const api = new Client({ auth: site.apiKey, notionVersion: site.notionVersion })
+const api = new Client({auth: site.apiKey, notionVersion: site.notionVersion, baseUrl: site.notionBaseUrl})
 
 function plainText(items: unknown): string {
   if (!Array.isArray(items)) return ''
