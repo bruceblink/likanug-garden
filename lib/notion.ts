@@ -1,5 +1,4 @@
 import { Client, isFullPage, isNotionClientError } from '@notionhq/client'
-import { unstable_cache } from 'next/cache'
 import { site } from './site'
 
 type NotionProperty = Record<string, unknown>
@@ -280,23 +279,43 @@ async function readBlogData(): Promise<BlogData> {
   }
 }
 
-const getCachedBlogData = unstable_cache(
-  async () => {
-    const data = await readBlogData()
-    if (data.error) throw new Error(data.error)
-    return data
-  },
-  ['notion-blog-data', site.pageId],
-  { revalidate: site.revalidate }
-)
+type CacheEntry<T> = {
+  value: T
+  expiresAt: number
+}
 
-// 只缓存成功快照；失败结果立即返回，避免短暂故障占满整个刷新周期。
+let blogDataCache: CacheEntry<BlogData> | undefined
+let blogDataRequest: Promise<BlogData> | undefined
+const postMarkdownCache = new Map<string, CacheEntry<PostMarkdown>>()
+const postMarkdownRequests = new Map<string, Promise<PostMarkdown>>()
+
+// 通过模块级缓存合并同一 Worker 实例中的请求，避免依赖 Next.js 专用缓存。
+function cacheIsFresh<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<T> {
+  return site.revalidate > 0 && Boolean(entry && entry.expiresAt > Date.now())
+}
+
+function cacheExpiry(): number {
+  return Date.now() + site.revalidate * 1000
+}
+
 export async function getBlogData(): Promise<BlogData> {
-  try {
-    return await getCachedBlogData()
-  } catch (error) {
-    return emptyData(error instanceof Error ? error.message : 'Notion API 请求失败，请检查网络和 Integration 授权。')
-  }
+  if (cacheIsFresh(blogDataCache)) return blogDataCache.value
+  if (blogDataRequest) return blogDataRequest
+
+  // 只缓存成功快照；失败结果立即返回，避免暂时故障占满整个刷新周期。
+  blogDataRequest = readBlogData()
+    .then(data => {
+      if (!data.error && site.revalidate > 0) {
+        blogDataCache = {value: data, expiresAt: cacheExpiry()}
+      }
+      return data
+    })
+    .catch(error => emptyData(error instanceof Error ? error.message : 'Notion API 请求失败，请检查网络和 Integration 授权。'))
+    .finally(() => {
+      blogDataRequest = undefined
+    })
+
+  return blogDataRequest
 }
 
 // Keep a temporary source failure distinct from a genuinely missing public article.
@@ -384,9 +403,23 @@ async function readPostMarkdown(pageId: string): Promise<PostMarkdown> {
 }
 
 export async function getPostMarkdown(pageId: string): Promise<PostMarkdown> {
-  return unstable_cache(
-    () => readPostMarkdown(pageId),
-    ['notion-post-markdown', pageId],
-    { revalidate: site.revalidate }
-  )()
+  const cached = postMarkdownCache.get(pageId)
+  if (cacheIsFresh(cached)) return cached.value
+
+  const existing = postMarkdownRequests.get(pageId)
+  if (existing) return existing
+
+  // 文章正文按页面 ID 缓存，并合并并发读取，避免重复请求 Notion Markdown 接口。
+  const request = readPostMarkdown(pageId)
+    .then(markdown => {
+      if (site.revalidate > 0) {
+        postMarkdownCache.set(pageId, {value: markdown, expiresAt: cacheExpiry()})
+      }
+      return markdown
+    })
+    .finally(() => {
+      postMarkdownRequests.delete(pageId)
+    })
+  postMarkdownRequests.set(pageId, request)
+  return request
 }

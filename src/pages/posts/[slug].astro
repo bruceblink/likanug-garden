@@ -1,0 +1,63 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import {NotionMarkdown} from '../../../lib/notion-markdown'
+import {getPostLookup, getPostMarkdown} from '../../../lib/notion'
+import {baseUrl, site} from '../../../lib/site'
+
+const slug = Astro.params.slug ?? ''
+const lookup = await getPostLookup(slug)
+const post = lookup.post
+const unavailable = Boolean(lookup.error)
+const canonical = post ? new URL(post.href, `${baseUrl}/`).toString() : `${baseUrl}/posts/${encodeURIComponent(slug)}`
+const content = post && !unavailable ? await getPostMarkdown(post.id) : null
+
+// 让爬虫和边缘缓存看到真实的错误状态，不把临时 Notion 故障伪装成成功页面。
+if (unavailable) Astro.response.status = 503
+else if (!post) Astro.response.status = 404
+if (site.revalidate > 0 && !unavailable) {
+  Astro.response.headers.set('Cache-Control', `public, s-maxage=${site.revalidate}, stale-while-revalidate=${site.revalidate * 12}`)
+}
+---
+
+<BaseLayout
+  title={post?.title ?? (unavailable ? '文章暂时不可用' : '文章不存在')}
+  description={post?.summary || site.description}
+  canonical={canonical}
+  noindex={unavailable || !post}
+  article={post ? {publishedTime: post.publishDate, tags: post.tags} : undefined}
+>
+  {post && content ? <main id='main-content' class='shell article-shell'>
+    <a class='back' href='/#posts'>返回文章列表</a>
+    <article>
+      <header class='article-header'>
+        <p class='eyebrow'>文章</p>
+        <div class='article-meta'>
+          <time datetime={post.publishDate}>{post.publishDay}</time>
+          {post.category && <span>{post.category}</span>}
+        </div>
+        <h1>{post.title}</h1>
+        {post.summary && <p class='article-summary'>{post.summary}</p>}
+        {post.tags.length > 0 && <div class='article-tags'>
+          {post.tags.map(tag => <a href={`/?tag=${encodeURIComponent(tag)}#posts`}>#{tag}</a>)}
+        </div>}
+      </header>
+      {content.truncated && <p class='notion-warning'>部分内容超过 Notion API 单页读取上限，已尽力加载可访问内容。</p>}
+      <div class='notion-content'>
+        <NotionMarkdown markdown={content.markdown} title={post.title} />
+      </div>
+    </article>
+    <!-- Mermaid 脚本只在文章页加载，并按图表数量动态导入 Mermaid。 -->
+    <script>
+      import '../../scripts/mermaid.ts'
+    </script>
+  </main> : <main id='main-content' class='shell error-shell'>
+    <section class='error-panel' aria-labelledby='post-error-title'>
+      <p class='eyebrow'>{unavailable ? '暂时不可用' : '404'}</p>
+      <h1 id='post-error-title'>{unavailable ? '文章暂时不可用。' : '没有找到这篇文章。'}</h1>
+      <p>{lookup.error ?? '这个地址没有对应的已发布文章。'}</p>
+      <div class='error-actions'>
+        <a class='back' href='/#posts'>返回文章列表</a>
+      </div>
+    </section>
+  </main>}
+</BaseLayout>

@@ -1,5 +1,10 @@
 node_modules/
 .next/
+.astro/
+dist/
+.wrangler/
+worker-configuration.d.ts
 .env.local
+.dev.vars*
 *.log
 *.tsbuildinfo

@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+---
+
+<BaseLayout title='页面不存在' noindex>
+  <main id='main-content' class='shell error-shell'>
+    <section class='error-panel' aria-labelledby='not-found-title'>
+      <p class='eyebrow'>404</p>
+      <h1 id='not-found-title'>没有找到这个页面。</h1>
+      <p>请返回文章列表，或检查地址是否正确。</p>
+      <div class='error-actions'>
+        <a class='back' href='/#posts'>返回文章列表</a>
+      </div>
+    </section>
+  </main>
+</BaseLayout>

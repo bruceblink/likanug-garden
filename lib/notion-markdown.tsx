@@ -6,7 +6,6 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import {MermaidDiagram} from './mermaid-diagram'
 import {normalizeNotionMarkdown, removeDuplicateTitle} from './notion-markdown-utils'
 
 type NotionElementProps = {
@@ -205,8 +204,7 @@ function ExternalLink({href, children, node: _node, ...props}: MarkdownAnchorPro
 function MarkdownImage({src, alt = '', node: _node, ...props}: MarkdownImageProps) {
   const safeSrc = typeof src === 'string' ? safeHref(src) : undefined
   if (!safeSrc) return null
-  // Notion returns temporary signed image URLs, so next/image cannot optimize them without a fixed host allowlist.
-  // eslint-disable-next-line @next/next/no-img-element
+  // Notion returns temporary signed image URLs, so the renderer uses a normal img element.
   return <img src={safeSrc} alt={alt} loading='lazy' decoding='async' {...props} />
 }
 
@@ -415,8 +413,8 @@ function rehypeNotionTableOfContents() {
 }
 
 /**
- * React Markdown owns the outer pre element for fenced blocks. This component
- * only replaces Mermaid blocks before that pre is emitted, keeping valid HTML.
+ * React Markdown owns the outer pre element for fenced blocks. Mermaid blocks
+ * become static placeholders; an Astro page script upgrades them in the browser.
  */
 function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
   const codeChild = Children.toArray(children).find(child =>
@@ -427,7 +425,8 @@ function MarkdownPre({children, node: _node, ...props}: MarkdownPreProps) {
     isValidElement<{className?: string; children?: ReactNode}>(codeChild) &&
     /(?:^|\s)language-mermaid(?:\s|$)/.test(codeChild.props.className ?? '')
   ) {
-    return <MermaidDiagram chart={textContent(codeChild.props.children).replace(/\n$/, '')} />
+    const chart = textContent(codeChild.props.children).replace(/\n$/, '')
+    return <div className='mermaid-diagram-loading' data-mermaid><pre><code>{chart}</code></pre></div>
   }
 
   return <pre {...props}>{children}</pre>
@@ -536,8 +535,7 @@ function NotionImage({children, src, source, alt = ''}: NotionElementProps) {
   const safeSrc = mediaSource(src, source)
   if (!safeSrc) return null
   const caption = children ?? alt
-  // Notion 的图片 URL 是短期签名地址，不能交给 next/image 做固定域名优化。
-  // eslint-disable-next-line @next/next/no-img-element
+  // Notion 的图片 URL 是短期签名地址，直接使用普通 img 加载。
   return <figure><img src={safeSrc} alt={alt || textContent(children)} loading='lazy' decoding='async' />{caption && <figcaption>{caption}</figcaption>}</figure>
 }
 

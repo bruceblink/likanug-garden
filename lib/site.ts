@@ -36,7 +36,8 @@ function notionApiVersion(value: string | undefined): string {
   return notionMarkdownApiVersion
 }
 
-const canonicalSiteUrl = publicSiteUrl(env.NEXT_PUBLIC_SITE_URL)
+// 兼容旧的 Next.js 环境变量，同时支持 Astro 项目使用的 PUBLIC_* 命名。
+const canonicalSiteUrl = publicSiteUrl(env.PUBLIC_SITE_URL ?? env.NEXT_PUBLIC_SITE_URL)
 
 export const site = {
   // Published links use the configured blog origin and fall back to the canonical production host.
@@ -44,9 +45,10 @@ export const site = {
   mainSiteUrl: 'https://likanug.top',
   name: 'Likanug // lab',
   description:
+    env.PUBLIC_SITE_DESCRIPTION ??
     env.NEXT_PUBLIC_SITE_DESCRIPTION ??
     'Build quietly. Ship relentlessly. // 把好奇心编译成作品。',
-  revalidate: revalidateSeconds(env.NEXT_PUBLIC_REVALIDATE_SECONDS),
+  revalidate: revalidateSeconds(env.REVALIDATE_SECONDS ?? env.NEXT_PUBLIC_REVALIDATE_SECONDS),
   // Keep the API version explicit because page Markdown is part of the newer Notion API surface.
   notionVersion: notionApiVersion(env.NOTION_API_VERSION),
   pageId: env.NOTION_PAGE_ID ?? '',

@@ -1,14 +1,12 @@
-import { NextResponse } from 'next/server'
-import { getBlogData } from '@/lib/notion'
-import { baseUrl, site } from '@/lib/site'
-
-export const dynamic = 'force-dynamic'
+import type {APIRoute} from 'astro'
+import {getBlogData} from '../../lib/notion'
+import {baseUrl, site} from '../../lib/site'
 
 const cacheControl = `public, s-maxage=${site.revalidate}, stale-while-revalidate=${site.revalidate * 12}`
 
-// Publish only the already-filtered public fields so other surfaces can list posts without Notion credentials.
-export async function GET() {
-  const { posts, error } = await getBlogData()
+// 只公开已发布文章的 Feed 字段，不把 Notion 凭据或原始响应返回给读者。
+export const GET: APIRoute = async () => {
+  const {posts, error} = await getBlogData()
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Cache-Control': cacheControl,
@@ -16,10 +14,10 @@ export async function GET() {
   }
 
   if (error) {
-    return NextResponse.json({ error: 'The published post feed is temporarily unavailable.' }, { status: 503, headers })
+    return new Response(JSON.stringify({error: 'The published post feed is temporarily unavailable.'}), {status: 503, headers})
   }
 
-  return NextResponse.json({
+  return new Response(JSON.stringify({
     version: 'https://jsonfeed.org/version/1.1',
     title: site.name,
     home_page_url: baseUrl,
@@ -30,11 +28,10 @@ export async function GET() {
       url: new URL(post.href, `${baseUrl}/`).toString(),
       title: post.title,
       summary: post.summary || undefined,
-      // Leave the body empty when Notion has no summary instead of repeating the title.
       content_text: post.summary || undefined,
       date_published: post.publishDate,
       date_modified: post.lastEditedDate,
       tags: [...(post.category ? [post.category] : []), ...post.tags]
     }))
-  }, { headers })
+  }), {headers})
 }

@@ -2,24 +2,25 @@
   "name": "likanug-garden",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@12.18.0",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.22.3"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "deploy": "pnpm build && wrangler deploy",
+    "cf-typegen": "wrangler types",
     "test": "node --experimental-strip-types --test test/*.mjs",
-    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\""
+    "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
     "@notionhq/client": "5.31.1",
     "katex": "^0.19.1",
     "mermaid": "12.3.0",
-    "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-markdown": "^10.1.0",
@@ -30,11 +31,14 @@
     "remark-math": "^6.0.0"
   },
   "devDependencies": {
-    "@types/node": "22.15.3",
+    "@astrojs/check": "0.9.12",
+    "@astrojs/cloudflare": "14.4.8",
+    "@astrojs/react": "7.1.9",
+    "@types/node": "24.10.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.39.1",
-    "eslint-config-next": "16.4.6",
-    "typescript": "5.9.3"
+    "astro": "7.4.12",
+    "typescript": "5.9.3",
+    "wrangler": "4.162.0"
   }
 }

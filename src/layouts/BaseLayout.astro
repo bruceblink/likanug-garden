@@ -1,0 +1,72 @@
+---
+import '../styles/global.css'
+import 'katex/dist/katex.min.css'
+import {baseUrl, site} from '../../lib/site'
+
+interface Props {
+  title?: string
+  description?: string
+  canonical?: string
+  noindex?: boolean
+  article?: {publishedTime: string; tags: string[]}
+}
+
+const {
+  title,
+  description = site.description,
+  canonical = baseUrl,
+  noindex = false,
+  article
+} = Astro.props
+const documentTitle = title ? `${title} | ${site.name}` : site.name
+const copyrightYear = new Date().getFullYear()
+---
+
+<!doctype html>
+<html lang='zh-CN' data-scroll-behavior='smooth'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width' />
+    <meta name='description' content={description} />
+    {noindex && <meta name='robots' content='noindex, nofollow' />}
+    <link rel='canonical' href={canonical} />
+    <title>{documentTitle}</title>
+    <meta property='og:type' content={article ? 'article' : 'website'} />
+    <meta property='og:url' content={canonical} />
+    <meta property='og:site_name' content={site.name} />
+    <meta property='og:title' content={title ?? site.name} />
+    <meta property='og:description' content={description} />
+    {article && <meta property='article:published_time' content={article.publishedTime} />}
+    {article?.tags.map(tag => <meta property='article:tag' content={tag} />)}
+    <meta name='twitter:card' content='summary' />
+    <meta name='twitter:title' content={title ?? site.name} />
+    <meta name='twitter:description' content={description} />
+    <slot name='head' />
+  </head>
+  <body>
+    <a class='skip-link' href='#main-content'>跳至主要内容</a>
+    <header class='site-header'>
+      <div class='shell site-header-inner'>
+        <a class='brand' href='/' aria-label={`${site.name} 首页`}>
+          <img class='brand-mark' src='/icon.svg' alt='' width='28' height='28' />
+          <span>{site.name}</span>
+        </a>
+        <nav class='site-nav' aria-label='主导航'>
+          <a href='/#posts'>文章</a>
+          <a href='/#topics'>主题</a>
+          <a
+            class='site-nav-external'
+            href={site.mainSiteUrl}
+            target='_blank'
+            rel='noopener noreferrer'
+            aria-label='前往主站 likanug.top（在新标签页打开）'
+          >
+            主站
+          </a>
+        </nav>
+      </div>
+    </header>
+    <slot />
+    <footer><div class='shell footer-content'>© {copyrightYear} {site.name} · 记录、整理、发布。</div></footer>
+  </body>
+</html>

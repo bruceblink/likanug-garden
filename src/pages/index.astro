@@ -1,0 +1,150 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import {getBlogData, type Post} from '../../lib/notion'
+import {site} from '../../lib/site'
+
+const postsPerPage = 8
+const params = Astro.url.searchParams
+const category = params.get('category') ?? ''
+const tag = params.get('tag') ?? ''
+const query = params.get('q') ?? ''
+const rawPage = params.get('page') ?? ''
+
+// 将查询参数统一成有限的正整数，避免无效页码影响文章切片。
+function pageNumber(value: string): number {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1
+}
+
+function href(values: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && value !== '') search.set(key, String(value))
+  }
+  const queryString = search.toString()
+  return queryString ? `/?${queryString}#posts` : '/#posts'
+}
+
+function matches(post: Post, selectedCategory: string, selectedTag: string, searchQuery: string): boolean {
+  const haystack = `${post.title} ${post.summary} ${post.category ?? ''} ${post.tags.join(' ')}`.toLocaleLowerCase()
+  return (!selectedCategory || post.category === selectedCategory) &&
+    (!selectedTag || post.tags.includes(selectedTag)) &&
+    (!searchQuery || haystack.includes(searchQuery.toLocaleLowerCase()))
+}
+
+const {posts, categories, tags, error} = await getBlogData()
+const filtered = posts.filter(post => matches(post, category, tag, query))
+const totalPages = Math.max(1, Math.ceil(filtered.length / postsPerPage))
+const page = Math.min(pageNumber(rawPage), totalPages)
+const visiblePosts = filtered.slice((page - 1) * postsPerPage, page * postsPerPage)
+const hasFilters = Boolean(category || tag || query)
+const featuredPost = !hasFilters && page === 1 ? visiblePosts[0] : undefined
+const listedPosts = featuredPost ? visiblePosts.slice(1) : visiblePosts
+const filterParams = {category, tag, q: query}
+
+// 首页按 URL 查询参数变化，使用边缘缓存降低 Notion API 请求次数。
+if (site.revalidate > 0) {
+  Astro.response.headers.set('Cache-Control', `public, s-maxage=${site.revalidate}, stale-while-revalidate=${site.revalidate * 12}`)
+}
+---
+
+<BaseLayout>
+  <main id='main-content'>
+    <section class='shell home-intro' aria-labelledby='home-title'>
+      <p class='eyebrow'>个人博客</p>
+      <h1 id='home-title'>把正在理解的事，写成可以回访的记录。</h1>
+      <p class='home-description'>关于软件、系统设计与持续学习。文章由 Notion 写作并在这里发布。</p>
+      <p class='home-count'>目前已发布 {posts.length} 篇文章。</p>
+    </section>
+
+    {featuredPost && <section class='shell featured-section' aria-labelledby='featured-title'>
+      <div class='section-heading'>
+        <div>
+          <p class='eyebrow'>最新发布</p>
+          <h2 id='featured-title'>从这里开始读</h2>
+        </div>
+      </div>
+      <article class='featured-post'>
+        <div class='post-meta'>
+          <time datetime={featuredPost.publishDate}>{featuredPost.publishDay}</time>
+          {featuredPost.category && <span>{featuredPost.category}</span>}
+        </div>
+        <div class='featured-copy'>
+          <h3><a href={featuredPost.href}>{featuredPost.title}</a></h3>
+          {featuredPost.summary && <p>{featuredPost.summary}</p>}
+          {featuredPost.tags.length > 0 && <div class='post-tags'>
+            {featuredPost.tags.slice(0, 3).map(postTag => <a href={href({category, q: query, tag: postTag})}>#{postTag}</a>)}
+          </div>}
+          <a class='read-link' href={featuredPost.href}>阅读全文</a>
+        </div>
+      </article>
+    </section>}
+
+    <section class='shell post-section' id='posts' aria-labelledby='posts-title'>
+      <div class='section-heading post-section-heading'>
+        <div>
+          <p class='eyebrow'>{hasFilters ? '筛选结果' : '文章列表'}</p>
+          <h2 id='posts-title'>{hasFilters ? '找到的文章' : '最近文章'}</h2>
+        </div>
+        <p class='result-count' aria-live='polite'>共 {filtered.length} 篇</p>
+      </div>
+
+      <form class='search' action='/#posts' method='get'>
+        <label for='post-search'>搜索文章</label>
+        <div class='search-control'>
+          <input id='post-search' name='q' type='search' value={query} placeholder='输入标题、分类或标签' />
+          {category && <input name='category' type='hidden' value={category} />}
+          {tag && <input name='tag' type='hidden' value={tag} />}
+          <button type='submit'>搜索</button>
+        </div>
+      </form>
+
+      {categories.length > 0 && <nav class='category-list' aria-label='按分类筛选'>
+        <span>分类</span>
+        <a aria-current={!category ? 'page' : undefined} class={!category ? 'is-active' : undefined} href={href({tag, q: query})}>全部</a>
+        {categories.map(item => <a aria-current={category === item.name ? 'page' : undefined} class={category === item.name ? 'is-active' : undefined} href={href({tag, q: query, category: item.name})}>{item.name} <small>{item.count}</small></a>)}
+      </nav>}
+
+      {hasFilters && <div class='active-filters'>
+        <span>当前筛选</span>
+        {category && <span>分类：{category}</span>}
+        {tag && <span>标签：#{tag}</span>}
+        {query && <span>关键词：{query}</span>}
+        <a href='/#posts'>清除筛选</a>
+      </div>}
+
+      {filtered.length === 0 ? <div class='empty'>{error ?? '没有匹配的已发布文章。'}</div> : listedPosts.length > 0 && <div class='post-list'>
+        {listedPosts.map(post => <article class='post-row'>
+          <div class='post-meta'>
+            <time datetime={post.publishDate}>{post.publishDay}</time>
+            {post.category && <span>{post.category}</span>}
+          </div>
+          <div class='post-copy'>
+            <h3><a href={post.href}>{post.title}</a></h3>
+            {post.summary && <p>{post.summary}</p>}
+          </div>
+          {post.tags.length > 0 && <div class='post-tags'>
+            {post.tags.slice(0, 3).map(postTag => <a href={href({category, q: query, tag: postTag})}>#{postTag}</a>)}
+          </div>}
+        </article>)}
+      </div>}
+
+      {filtered.length > postsPerPage && <nav class='pager' aria-label='文章分页'>
+        {page > 1 && <a href={href({...filterParams, page: page - 1})}>上一页</a>}
+        <span>第 {page} / {totalPages} 页</span>
+        {page < totalPages && <a href={href({...filterParams, page: page + 1})}>下一页</a>}
+      </nav>}
+    </section>
+
+    {(categories.length > 0 || tags.length > 0) && <section class='shell topic-section' id='topics' aria-labelledby='topics-title'>
+      <p class='eyebrow'>主题索引</p>
+      <h2 id='topics-title'>按主题浏览</h2>
+      <details class='topic-details'>
+        <summary>展开全部标签</summary>
+        <div class='topic-links'>
+          {tags.map(item => <a href={href({category, q: query, tag: item.name})}>#{item.name} <small>{item.count}</small></a>)}
+        </div>
+      </details>
+    </section>}
+  </main>
+</BaseLayout>
