@@ -2,6 +2,7 @@ const env = process.env
 const defaultSiteUrl = 'https://blog.likanug.top'
 const mainSiteHosts = new Set(['likanug.top', 'www.likanug.top'])
 const defaultRevalidateSeconds = 300
+const notionMarkdownApiVersion = '2026-03-11'
 
 // Normalize the public origin used by canonical and feed links, falling back when a preview value is invalid.
 function publicSiteUrl(value: string | undefined): string {
@@ -26,6 +27,15 @@ function revalidateSeconds(value: string | undefined): number {
     : defaultRevalidateSeconds
 }
 
+// Markdown v2 需要 2026-03-11 或更新的 Notion API；旧环境变量统一回退到当前支持版本。
+function notionApiVersion(value: string | undefined): string {
+  const candidate = value?.trim()
+  if (candidate && candidate !== notionMarkdownApiVersion) {
+    console.warn(`Unsupported NOTION_API_VERSION ${candidate}; using ${notionMarkdownApiVersion}`)
+  }
+  return notionMarkdownApiVersion
+}
+
 const canonicalSiteUrl = publicSiteUrl(env.NEXT_PUBLIC_SITE_URL)
 
 export const site = {
@@ -38,7 +48,7 @@ export const site = {
     'Build quietly. Ship relentlessly. // 把好奇心编译成作品。',
   revalidate: revalidateSeconds(env.NEXT_PUBLIC_REVALIDATE_SECONDS),
   // Keep the API version explicit because page Markdown is part of the newer Notion API surface.
-  notionVersion: env.NOTION_API_VERSION ?? '2026-03-11',
+  notionVersion: notionApiVersion(env.NOTION_API_VERSION),
   pageId: env.NOTION_PAGE_ID ?? '',
   apiKey: env.NOTION_API_KEY ?? '',
   properties: {

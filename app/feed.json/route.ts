@@ -33,6 +33,7 @@ export async function GET() {
       // Leave the body empty when Notion has no summary instead of repeating the title.
       content_text: post.summary || undefined,
       date_published: post.publishDate,
+      date_modified: post.lastEditedDate,
       tags: [...(post.category ? [post.category] : []), ...post.tags]
     }))
   }, { headers })

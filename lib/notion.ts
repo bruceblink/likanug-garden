@@ -26,6 +26,7 @@ export type Post = {
   category: string | null
   tags: string[]
   publishDate: string
+  lastEditedDate: string
   publishDay: string
   href: string
 }
@@ -130,6 +131,8 @@ function formatPost(page: NotionPage): Post | null {
     return null
   }
 
+  const lastEdited = validPublishDate(page.last_edited_time, publish.toISOString()) ?? publish
+
   return {
     id: page.id,
     title,
@@ -140,6 +143,7 @@ function formatPost(page: NotionPage): Post | null {
     category: propertySelect(property(page, site.properties.category))[0] ?? null,
     tags: propertySelect(property(page, site.properties.tags)),
     publishDate: publish.toISOString(),
+    lastEditedDate: lastEdited.toISOString(),
     publishDay: new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(
       publish
     ),
@@ -156,6 +160,24 @@ function aggregate(posts: Post[]): Pick<BlogData, 'categories' | 'tags'> {
     categories: count(posts.flatMap(post => (post.category ? [post.category] : []))),
     tags: count(posts.flatMap(post => post.tags))
   }
+}
+
+// 重复 slug 通过页面 ID 后缀区分，避免两个已发布页面共用同一个公开 URL。
+function deduplicateSlugs(posts: Post[]): Post[] {
+  const used = new Set<string>()
+  return posts.map(post => {
+    let slug = post.slug
+    if (used.has(slug)) {
+      const suffix = post.id.replaceAll('-', '').slice(0, 8)
+      slug = `${post.slug}-${suffix}`
+      let serial = 2
+      while (used.has(slug)) slug = `${post.slug}-${suffix}-${serial++}`
+    }
+    used.add(slug)
+    return slug === post.slug
+      ? post
+      : {...post, slug, href: `/posts/${encodeURIComponent(slug)}`}
+  })
 }
 
 async function readAllPages(dataSourceId: string): Promise<NotionPage[]> {
@@ -219,10 +241,10 @@ async function readBlogData(): Promise<BlogData> {
       database.data_sources.map(dataSource => readAllPages(dataSource.id))
     )).flat()
     const uniqueRows = Array.from(new Map(rows.map(row => [row.id, row])).values())
-    const posts = uniqueRows
+    const posts = deduplicateSlugs(uniqueRows
       .map(formatPost)
       .filter((post): post is Post => post !== null)
-      .sort((a, b) => b.publishDate.localeCompare(a.publishDate))
+      .sort((a, b) => b.publishDate.localeCompare(a.publishDate) || a.id.localeCompare(b.id)))
 
     return { posts, ...aggregate(posts) }
   } catch (error) {
@@ -232,12 +254,23 @@ async function readBlogData(): Promise<BlogData> {
 }
 
 const getCachedBlogData = unstable_cache(
-  readBlogData,
+  async () => {
+    const data = await readBlogData()
+    if (data.error) throw new Error(data.error)
+    return data
+  },
   ['notion-blog-data', site.pageId],
   { revalidate: site.revalidate }
 )
 
-export const getBlogData = async (): Promise<BlogData> => getCachedBlogData()
+// 只缓存成功快照；失败结果立即返回，避免短暂故障占满整个刷新周期。
+export async function getBlogData(): Promise<BlogData> {
+  try {
+    return await getCachedBlogData()
+  } catch (error) {
+    return emptyData(error instanceof Error ? error.message : 'Notion API 请求失败，请检查网络和 Integration 授权。')
+  }
+}
 
 // Keep a temporary source failure distinct from a genuinely missing public article.
 export async function getPostLookup(slug: string): Promise<PostLookup> {

@@ -119,7 +119,7 @@ export default async function HomePage({searchParams}: {searchParams: SearchPara
         <Link href='/#posts'>清除筛选</Link>
       </div>}
 
-      {listedPosts.length === 0 ? <div className='empty'>{error ?? '没有匹配的已发布文章。'}</div> : <div className='post-list'>
+      {filtered.length === 0 ? <div className='empty'>{error ?? '没有匹配的已发布文章。'}</div> : listedPosts.length > 0 && <div className='post-list'>
         {listedPosts.map(post => <article className='post-row' key={post.id}>
           <PostMeta post={post} />
           <div className='post-copy'>
