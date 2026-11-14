@@ -1,4 +1,5 @@
 import {Children, isValidElement, type ComponentProps, type ReactNode} from 'react'
+import katex from 'katex'
 import ReactMarkdown, {type Components} from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
@@ -28,6 +29,13 @@ type NotionElementProps = {
   startTime?: string
   endTime?: string
   timeZone?: string
+  'start-time'?: string
+  'end-time'?: string
+  'time-zone'?: string
+  starttime?: string
+  timezone?: string
+  'definition-id'?: string
+  integration?: string
 }
 
 type MarkdownCodeProps = ComponentProps<'code'> & {
@@ -71,6 +79,7 @@ type MarkdownHeading = {
 
 const notionTags = [
   'callout',
+  'equation',
   'quote',
   'toggle',
   'todo',
@@ -101,9 +110,11 @@ const notionTags = [
   'synced-block-reference',
   'notion-table-of-contents',
   'table-of-contents',
+  'notion-image',
   'empty-block',
   'unknown',
   'external_object_instance',
+  'external-object-instance',
   'custom-block'
 ]
 
@@ -116,6 +127,7 @@ const notionSanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     callout: ['icon', 'color'],
+    equation: ['color'],
     quote: ['color'],
     toggle: ['heading', 'color'],
     todo: ['checked', 'color'],
@@ -123,6 +135,7 @@ const notionSanitizeSchema = {
     span: ['color', 'underline'],
     file: ['src', 'source', 'color'],
     image: ['src', 'source', 'color'],
+    'notion-image': ['src', 'source', 'color'],
     page: ['url', 'color'],
     folder: ['url', 'color'],
     database: ['url', 'inline', 'icon', 'color'],
@@ -138,13 +151,21 @@ const notionSanitizeSchema = {
     'mention-database': ['url'],
     'mention-data-source': ['url'],
     'mention-agent': ['url'],
-    'mention-date': ['start', 'end', 'starttime', 'timezone'],
-    date: ['start', 'end', 'startTime', 'endTime', 'timeZone'],
+    'mention-date': ['start', 'end', 'starttime', 'timezone', 'startTime', 'timeZone'],
+    date: ['start', 'end', 'start-time', 'end-time', 'time-zone', 'startTime', 'endTime', 'timeZone'],
     synced_block: ['url'],
     synced_block_reference: ['url'],
     'synced-block': ['url'],
     'synced-block-reference': ['url', 'notice'],
+    'external-object-instance': ['integration'],
     unknown: ['url', 'alt'],
+    'custom-block': ['definition-id', 'url'],
+    table: ['fit-page-width', 'header-row', 'header-column', 'fitPageWidth', 'headerRow', 'headerColumn'],
+    colgroup: [],
+    col: ['width', 'color'],
+    tr: ['color'],
+    th: ['color'],
+    td: ['color'],
     nav: ['ariaLabel', ['className', 'notion-toc']],
     p: [...(defaultSchema.attributes?.p ?? []), ['className', 'notion-toc-label']],
     ol: ['ariaDescribedBy', 'ariaLabel', 'ariaLabelledBy', ['className', 'contains-task-list', 'notion-toc-list']],
@@ -305,6 +326,47 @@ function isTableOfContentsPlaceholder(node: HastNode): boolean {
   return node.type === 'element' && node.tagName === 'notion-table-of-contents'
 }
 
+const blockPlaceholderTags = new Set([
+  'callout',
+  'equation',
+  'quote',
+  'todo',
+  'columns',
+  'column',
+  'notion-image',
+  'custom-block',
+  'external-object-instance',
+  'synced-block',
+  'synced-block-reference'
+])
+
+function isBlockPlaceholder(node: HastNode): boolean {
+  return node.type === 'element' && Boolean(node.tagName && blockPlaceholderTags.has(node.tagName))
+}
+
+// HTML 自定义块可能先被 Markdown 解析器放入 p；提升到同级，避免块元素嵌套在 p 中。
+function promoteBlockPlaceholders(nodes: HastNode[]): HastNode[] {
+  return nodes.flatMap(node => {
+    if (node.tagName === 'p' && node.children?.some(isBlockPlaceholder)) {
+      const replacement: HastNode[] = []
+      let proseChildren: HastNode[] = []
+      for (const child of node.children) {
+        if (isBlockPlaceholder(child)) {
+          if (proseChildren.length > 0) replacement.push({...node, children: proseChildren})
+          replacement.push(child)
+          proseChildren = []
+        } else {
+          proseChildren.push(child)
+        }
+      }
+      if (proseChildren.length > 0) replacement.push({...node, children: proseChildren})
+      return replacement
+    }
+    if (node.children) node.children = promoteBlockPlaceholders(node.children)
+    return [node]
+  })
+}
+
 // Replaces every official Notion placeholder with the same outline used for heading IDs.
 function replaceTableOfContents(nodes: HastNode[], headings: MarkdownHeading[]): HastNode[] {
   return nodes.flatMap(node => {
@@ -343,6 +405,7 @@ function rehypeNotionTableOfContents() {
     const headings = collectMarkdownHeadings(root)
     if (!root.children) return
 
+    root.children = promoteBlockPlaceholders(root.children)
     const hasPlaceholder = containsTableOfContents(root.children)
     const renderedNodes = replaceTableOfContents(root.children, headings)
     root.children = !hasPlaceholder && headings.length >= 4
@@ -422,6 +485,13 @@ function NotionCallout({children, color, icon}: NotionElementProps) {
   </aside>
 }
 
+function NotionEquation({children, color}: NotionElementProps) {
+  const source = textContent(children).trim()
+  if (!source) return null
+  const html = katex.renderToString(source, {displayMode: true, throwOnError: false, trust: false})
+  return <div className={`notion-equation ${colorClass(color) ?? ''}`.trim()} dangerouslySetInnerHTML={{__html: html}} />
+}
+
 function NotionQuote({children}: NotionElementProps) {
   // v2 quote 直接映射为语义化 blockquote。
   return <blockquote>{children}</blockquote>
@@ -449,6 +519,9 @@ function NotionColumn({children}: NotionElementProps) {
 
 function NotionReference({children, url, source, className}: NotionElementProps & {className?: string}) {
   const reference = typeof source === 'string' ? source : url
+  if (reference && /^(?:user|agent|collection):\/\//i.test(reference)) {
+    return <span className={`notion-reference ${className ?? ''}`.trim()}>{children ?? reference}</span>
+  }
   return <ExternalLink className={`notion-reference ${className ?? ''}`.trim()} href={reference}>{children ?? reference ?? '打开 Notion'}</ExternalLink>
 }
 
@@ -462,9 +535,10 @@ function NotionImage({children, src, source, alt = ''}: NotionElementProps) {
   // v2 image 的 caption 作为图注显示，签名 URL 仍使用普通 img 加载。
   const safeSrc = mediaSource(src, source)
   if (!safeSrc) return null
+  const caption = children ?? alt
   // Notion 的图片 URL 是短期签名地址，不能交给 next/image 做固定域名优化。
   // eslint-disable-next-line @next/next/no-img-element
-  return <figure><img src={safeSrc} alt={alt || textContent(children)} loading='lazy' decoding='async' /><figcaption>{children}</figcaption></figure>
+  return <figure><img src={safeSrc} alt={alt || textContent(children)} loading='lazy' decoding='async' />{caption && <figcaption>{caption}</figcaption>}</figure>
 }
 
 function NotionAudio({src, source}: NotionElementProps) {
@@ -477,15 +551,24 @@ function NotionVideo({src, source}: NotionElementProps) {
   return safeUrl ? <video controls src={safeUrl}>你的浏览器不支持视频播放。</video> : null
 }
 
-function NotionDate({children, start, end, startTime, endTime, timeZone}: NotionElementProps) {
+function NotionDate(props: NotionElementProps) {
   // 日期标签只负责展示 Notion 返回的日期和时区信息。
+  const {children, start, end} = props
+  const startTime = props.startTime ?? props['start-time'] ?? props.starttime
+  const endTime = props.endTime ?? props['end-time']
+  const timeZone = props.timeZone ?? props['time-zone'] ?? props.timezone
   const label = children ?? [start, end].filter(Boolean).join(' – ')
   const time = [startTime, endTime].filter(Boolean).join(' – ')
   return <time className='notion-mention-date' dateTime={start}>{label}{time ? ` ${time}` : ''}{timeZone ? ` (${timeZone})` : ''}</time>
 }
 
+function NotionUnsupported({children, integration, url, alt, 'definition-id': definitionId}: NotionElementProps) {
+  const label = children ?? alt ?? integration ?? (definitionId ? `自定义区块 ${definitionId}` : 'Notion 内容')
+  return <div className='notion-unknown'>未支持的 Notion 内容：{label} {url && <ExternalLink href={url}>在 Notion 中打开</ExternalLink>}</div>
+}
+
 function NotionUnknown({url, alt}: NotionElementProps) {
-  return <p className='notion-unknown'>未支持的 Notion 内容：{alt ?? 'unknown'} {url && <ExternalLink href={url}>在 Notion 中打开</ExternalLink>}</p>
+  return <div className='notion-unknown'>未支持的 Notion 内容：{alt ?? 'unknown'} {url && <ExternalLink href={url}>在 Notion 中打开</ExternalLink>}</div>
 }
 
 const components = {
@@ -501,6 +584,7 @@ const components = {
   a: ExternalLink,
   img: MarkdownImage,
   callout: NotionCallout,
+  equation: NotionEquation,
   quote: NotionQuote,
   todo: NotionTodo,
   details: NotionDetails,
@@ -508,6 +592,7 @@ const components = {
   column: NotionColumn,
   file: NotionMedia,
   image: NotionImage,
+  'notion-image': NotionImage,
   pdf: NotionMedia,
   audio: NotionAudio,
   video: NotionVideo,
@@ -529,6 +614,8 @@ const components = {
   synced_block_reference: ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
   'synced-block': ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
   'synced-block-reference': ({children}: NotionElementProps) => <div className='notion-synced-block'>{children}</div>,
+  'external-object-instance': NotionUnsupported,
+  'custom-block': NotionUnsupported,
   'empty-block': () => <div className='notion-empty-block' aria-hidden='true' />,
   unknown: NotionUnknown,
   span: ({children, color, underline}: NotionElementProps) => <span className={[colorClass(color), underline === 'true' ? 'notion-underline' : undefined].filter(Boolean).join(' ')}>{children}</span>

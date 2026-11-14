@@ -55,37 +55,9 @@ function transformOutsideInlineCode(markdown: string, transform: (prose: string)
 }
 
 // 把 v1 表格单元格折叠成 GFM 可接受的一行，并保留换行与竖线。
-function tableCellToMarkdown(cell: string): string {
-  return cell
-    .trim()
-    .replace(/<br\s*\/?\s*>/gi, '<br />')
-    .replace(/\r?\n\s*/g, '<br />')
-    .replace(/\|/g, '\\|')
-}
-
-// v1 的带样式表格需要转换为 GFM；普通表格和代码围栏保持原样。
+// v1 和 v2 的 HTML 表格保留原始结构，交给 rehypeRaw 解析以避免丢失列标题、颜色和宽度。
 function convertNotionTables(markdown: string): string {
-  return markdown.replace(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi, (table, attributes: string, body: string) => {
-    if (!/\bheader-row\s*=\s*(?:"true"|'true'|true)(?=\s|$)/i.test(attributes)) {
-      return `\n\n${table.trim()}\n\n`
-    }
-
-    const rows = Array.from(body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi))
-      .map(([, row]) => Array.from(row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi))
-        .map(([, cell]) => tableCellToMarkdown(cell)))
-      .filter(row => row.length > 0)
-
-    if (rows.length === 0) return `\n\n${table.trim()}\n\n`
-
-    const columnCount = Math.max(...rows.map(row => row.length))
-    const paddedRows = rows.map(row => Array.from({length: columnCount}, (_, index) => row[index] ?? ''))
-    const [header, ...bodyRows] = paddedRows
-    return [
-      `| ${header.join(' | ')} |`,
-      `| ${header.map(() => '---').join(' | ')} |`,
-      ...bodyRows.map(row => `| ${row.join(' | ')} |`)
-    ].join('\n').replace(/^/, '\n\n').concat('\n\n')
-  })
+  return markdown.replace(/<table\b[\s\S]*?<\/table>/gi, table => `\n\n${table.trim()}\n\n`)
 }
 
 // 删除 Notion 输出的空“参考文章”区块，避免页面出现孤立列表标记。
@@ -102,17 +74,61 @@ function normalizeNotionTableOfContents(markdown: string): string {
     .replace(/<\/?table-of-contents\b/gi, tag => tag.startsWith('</') ? '</notion-table-of-contents' : '<notion-table-of-contents')
 }
 
-// v2 的 toggle 是带标题的容器；转换为标准 details，确保 Markdown 解析器保留正文块。
+// 规范化 v1/v2 的块标签，避免下划线标签被 rehypeRaw 当作普通文本。
+function normalizeNotionBlockTags(markdown: string): string {
+  return markdown
+    .replace(/<image\b([^>]*)>([\s\S]*?)<\/image>/gi, '<notion-image$1>$2</notion-image>')
+    .replace(/<image\b([^>]*)\/\s*>/gi, '<notion-image$1></notion-image>')
+    .replace(/<\/?synced_block\b/gi, tag => tag.startsWith('</') ? '</synced-block' : '<synced-block')
+    .replace(/<\/?synced_block_reference\b/gi, tag => tag.startsWith('</') ? '</synced-block-reference' : '<synced-block-reference')
+    .replace(/<\/?external_object_instance\b/gi, tag => tag.startsWith('</') ? '</external-object-instance' : '<external-object-instance')
+    .replace(/<custom-block\b([^>]*)\/\s*>/gi, '<custom-block$1></custom-block>')
+    .replace(/<external-object-instance\b([^>]*)\/\s*>/gi, '<external-object-instance$1></external-object-instance>')
+}
+
+function matchingToggleEnd(markdown: string, start: number): number | undefined {
+  const tags = /<\/?toggle\b[^>]*>/gi
+  tags.lastIndex = start
+  let depth = 0
+  let match: RegExpExecArray | null
+  while ((match = tags.exec(markdown))) {
+    if (match[0].startsWith('</')) {
+      depth -= 1
+      if (depth === 0) return match.index
+    } else {
+      depth += 1
+    }
+  }
+  return undefined
+}
+
+// v2 的 toggle 是带标题的容器；使用状态扫描保留嵌套正文和标题级别。
 function normalizeNotionToggles(markdown: string): string {
-  return markdown.replace(/<toggle\b([^>]*)>([\s\S]*?)<\/toggle>/gi, (_, attributes: string, body: string) => {
+  const openPattern = /<toggle\b([^>]*)>/gi
+  let output = ''
+  let cursor = 0
+  let match: RegExpExecArray | null
+  while ((match = openPattern.exec(markdown))) {
+    const end = matchingToggleEnd(markdown, match.index)
+    if (end === undefined) break
+    const closeEnd = markdown.indexOf('>', end) + 1
+    if (closeEnd <= end) break
+    output += markdown.slice(cursor, match.index)
+    const attributes = match[1]
+    const body = markdown.slice(openPattern.lastIndex, end)
     const content = body.trim()
     const separator = content.search(/\n\s*\n/)
     const title = separator < 0 ? content : content.slice(0, separator).trim()
-    const children = separator < 0 ? '' : content.slice(separator).trim()
+    const children = separator < 0 ? '' : normalizeNotionToggles(content.slice(separator).trim())
     const color = attributes.match(/\bcolor\s*=\s*(["'][^"']+["'])/i)?.[1]
+    const heading = attributes.match(/\bheading\s*=\s*(["'])(h[1-4])\1/i)?.[2]
     const detailsAttributes = color ? ` color=${color}` : ''
-    return `<details${detailsAttributes}><summary>${title}</summary>${children ? `\n\n${children}\n\n` : ''}</details>`
-  })
+    const summaryClass = heading ? ` class="notion-toggle-heading notion-toggle-${heading}"` : ''
+    output += `<details${detailsAttributes}><summary${summaryClass}>${title}</summary>${children ? `\n\n${children}\n\n` : ''}</details>`
+    cursor = closeEnd
+    openPattern.lastIndex = closeEnd
+  }
+  return output + markdown.slice(cursor)
 }
 
 // 只在代码围栏外清理 v1 属性，避免文章中的示例代码被改写。
@@ -120,10 +136,10 @@ export function normalizeNotionMarkdown(markdown: string): string {
   return transformOutsideFencedCode(markdown, prose =>
     transformOutsideInlineCode(prose, inlineSafeProse =>
       normalizeNotionTableOfContents(
-        normalizeNotionToggles(
+        normalizeNotionBlockTags(normalizeNotionToggles(
           removeEmptyReferenceSection(convertNotionTables(inlineSafeProse))
             .replace(/\s+\{[^{}\n]*(?:color="[^"]+"|toggle="true")[^{}\n]*\}/g, '')
-        )
+        ))
       )
     )
   )
@@ -134,28 +150,11 @@ export function removeDuplicateTitle(markdown: string, title?: string): string {
   if (!title) return markdown
   const normalizedTitle = title.trim().replace(/\s+/g, ' ')
   const lines = markdown.split(/\r?\n/)
-  let fence: {character: string; length: number} | null = null
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
-    const marker = line.match(/^\s*(`{3,}|~{3,})/)
-    if (fence) {
-      const closingFence = new RegExp(`^\\s*${fence.character}{${fence.length},}\\s*$`)
-      if (closingFence.test(line)) fence = null
-      continue
-    }
-    if (marker) {
-      fence = {character: marker[1][0], length: marker[1].length}
-      continue
-    }
-
-    const match = line.match(/^#\s+(.+?)(?:\s+\{[^\n]*\})?\s*$/)
-    if (!match) continue
-    if (match[1].trim().replace(/\s+/g, ' ') !== normalizedTitle) return markdown
-    lines.splice(index, 1)
-    while (index < lines.length && lines[index].trim() === '') lines.splice(index, 1)
-    return lines.join('\n')
-  }
-
-  return markdown
+  const firstIndex = lines.findIndex(line => line.trim() !== '')
+  if (firstIndex < 0 || /^\s*(`{3,}|~{3,})/.test(lines[firstIndex])) return markdown
+  const match = lines[firstIndex].match(/^#\s+(.+?)(?:\s+\{[^\n]*\})?\s*$/)
+  if (!match || match[1].trim().replace(/\s+/g, ' ') !== normalizedTitle) return markdown
+  lines.splice(firstIndex, 1)
+  while (firstIndex < lines.length && lines[firstIndex].trim() === '') lines.splice(firstIndex, 1)
+  return lines.join('\n')
 }

@@ -68,12 +68,32 @@ function property(page: NotionPage, name: string): NotionProperty {
   return page.properties[name] ?? {}
 }
 
+// 读取 formula、rollup 等复合属性的公开文本值，保持字段配置变化时的兼容性。
+function nestedPropertyText(value: unknown): string {
+  if (!value || typeof value !== 'object') return value == null ? '' : String(value)
+  const nested = value as NotionProperty
+  if (nested.type === 'array' && Array.isArray(nested.array)) {
+    return nested.array.map(nestedPropertyText).filter(Boolean).join(',')
+  }
+  if (nested.type === 'title') return plainText(nested.title)
+  if (nested.type === 'rich_text') return plainText(nested.rich_text)
+  if (nested.type === 'string') return String(nested.string ?? '')
+  if (nested.type === 'number') return String(nested.number ?? '')
+  if (nested.type === 'boolean') return nested.boolean ? 'true' : 'false'
+  if (nested.type === 'date') return String((nested.date as {start?: string} | null)?.start ?? '')
+  return ''
+}
+
 function propertyText(property: NotionProperty): string {
   if (property.type === 'title') return plainText(property.title)
   if (property.type === 'rich_text') return plainText(property.rich_text)
   if (property.type === 'url') return String(property.url ?? '')
   if (property.type === 'email') return String(property.email ?? '')
   if (property.type === 'phone_number') return String(property.phone_number ?? '')
+  if (property.type === 'number') return String(property.number ?? '')
+  if (property.type === 'checkbox') return property.checkbox ? 'true' : 'false'
+  if (property.type === 'formula') return nestedPropertyText(property.formula)
+  if (property.type === 'rollup') return nestedPropertyText(property.rollup)
   return ''
 }
 
@@ -93,8 +113,15 @@ function propertySelect(property: NotionProperty): string[] {
 }
 
 function propertyDate(property: NotionProperty): string | null {
-  if (property.type !== 'date') return null
-  const date = property.date as { start?: string } | null
+  const dateValue = property.type === 'date'
+    ? property.date
+    : property.type === 'formula' && (property.formula as NotionProperty | null)?.type === 'date'
+      ? (property.formula as NotionProperty).date
+      : property.type === 'rollup' && (property.rollup as NotionProperty | null)?.type === 'date'
+        ? (property.rollup as NotionProperty).date
+        : null
+  if (!dateValue) return null
+  const date = dateValue as { start?: string } | null
   return date?.start ?? null
 }
 
