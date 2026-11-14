@@ -2,7 +2,7 @@
 
 基于 Astro SSR、Cloudflare Workers 和 Notion API 的个人博客。文章在 Notion 数据库中编写，站点只展示符合发布条件的页面，并将 Notion-flavored Markdown 渲染为文章页面。
 
-当前仓库已完成 Astro SSR 垂直切片，包含首页、文章详情页、Notion 数据读取、Mermaid 图表和 `/feed.json`。Sitemap、Robots 和更完整的错误边界仍可在后续迭代中补充。
+当前仓库已完成 Astro SSR 迁移，包含首页、文章详情页、Notion 数据读取、Mermaid 图表、JSON Feed、Sitemap 和 Robots。
 
 ## 技术栈
 
@@ -135,11 +135,13 @@ pnpm exec wrangler secret put NOTION_API_KEY
 | `/` | 首页、搜索、分类、标签和分页筛选。 |
 | `/posts/<slug>` | 文章详情页，服务端读取 Notion Markdown。 |
 | `/feed.json` | JSON Feed 1.1。 |
+| `/sitemap.xml` | 只包含已发布文章的 Sitemap。 |
+| `/robots.txt` | 公开抓取规则和 Sitemap 地址。 |
 | `/404` | Astro 自定义 404 页面。 |
 
 ## 缓存和运行时边界
 
-Notion 数据读取使用 Worker 实例内的短期模块缓存，并由响应头提供边缘缓存提示。缓存时间由 `REVALIDATE_SECONDS` 控制。模块缓存不是跨所有 Cloudflare 地区共享的持久缓存；如果后续需要跨实例一致的缓存，应改用 KV 或其他 Cloudflare 存储。
+Notion 数据读取使用 Worker 实例内的短期模块缓存，并由响应头提供边缘缓存提示。文章正文缓存最多保留 128 个页面。缓存时间由 `REVALIDATE_SECONDS` 控制。模块缓存不是跨所有 Cloudflare 地区共享的持久缓存；如果后续需要跨实例一致的缓存，应改用 KV 或其他 Cloudflare 存储。
 
 当前 Notion 数据层继续使用 `@notionhq/client`。它已通过本地打包检查；如果目标账号的 Worker 运行时暴露 Node.js 兼容问题，应改为直接使用 `fetch` 调用 Notion REST API。
 
@@ -155,6 +157,8 @@ src/
   pages/index.astro              首页和查询参数筛选
   pages/posts/[slug].astro       动态文章页
   pages/feed.json.ts             JSON Feed endpoint
+  pages/sitemap.xml.ts           Sitemap endpoint
+  pages/robots.txt.ts            Robots endpoint
   pages/404.astro                自定义 404 页面
   scripts/mermaid.ts             Mermaid 按需加载脚本
   styles/global.css              全局样式

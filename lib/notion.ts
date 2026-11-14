@@ -288,6 +288,7 @@ let blogDataCache: CacheEntry<BlogData> | undefined
 let blogDataRequest: Promise<BlogData> | undefined
 const postMarkdownCache = new Map<string, CacheEntry<PostMarkdown>>()
 const postMarkdownRequests = new Map<string, Promise<PostMarkdown>>()
+const maxPostCacheEntries = 128
 
 // 通过模块级缓存合并同一 Worker 实例中的请求，避免依赖 Next.js 专用缓存。
 function cacheIsFresh<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<T> {
@@ -414,6 +415,12 @@ export async function getPostMarkdown(pageId: string): Promise<PostMarkdown> {
     .then(markdown => {
       if (site.revalidate > 0) {
         postMarkdownCache.set(pageId, {value: markdown, expiresAt: cacheExpiry()})
+        // 限制长驻 Worker 实例的文章缓存数量，避免持续访问新页面造成内存增长。
+        while (postMarkdownCache.size > maxPostCacheEntries) {
+          const oldestPageId = postMarkdownCache.keys().next().value
+          if (!oldestPageId) break
+          postMarkdownCache.delete(oldestPageId)
+        }
       }
       return markdown
     })
